@@ -14,7 +14,7 @@ F90DOC = ../../bin/f90doc-0.4.0/f90doc
 PACKAGE =	CARMA
 TGZ =		CARMA.tar
 
-FFLAGS =
+FFLAGS = -ggdb -O0 -traceback
 #FFLAGS += -DSINGLE                    # for single precision
 #FFLAGS += -DDEBUG                     # for debug print statements
 
@@ -137,12 +137,13 @@ CEASTsmall.exe : $(CARMA_OBJ) carma_eastsmall.o carma_testutils.o atmosphere_mod
 CWESTsmall.exe : $(CARMA_OBJ) carma_westsmall.o carma_testutils.o atmosphere_mod.o
 	$(FORTRAN) $(LDFLAGS) -o CWESTsmall.exe carma_westsmall.o carma_testutils.o atmosphere_mod.o $(CARMA_OBJ)
 
-
+diamondback_test.exe : $(CARMA_OBJ) carma_diamondback_test.o carma_testutils.o atmosphere_mod.o
+	$(FORTRAN) $(LDFLAGS) -o diamondback_test.exe carma_diamondback_test.o carma_testutils.o atmosphere_mod.o $(CARMA_OBJ)
 
 
 # Compile everything.
 all : CDAY.exe CEAST.exe CWEST.exe CDAYbig.exe CEASTbig.exe CWESTbig.exe \
-      CDAYsmall.exe CEASTsmall.exe CWESTsmall.exe
+      CDAYsmall.exe CEASTsmall.exe CWESTsmall.exe diamondback_test.exe
 
 # Compile all of the documentation.
 doc : $(CARMA_DOC) $(TEST_DOC)

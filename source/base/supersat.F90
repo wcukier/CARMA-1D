@@ -85,7 +85,15 @@ subroutine supersat(carma, cstate, iz, igas, rc)
 	- alpha * pvapi(iz,igas)) / pvapi(iz,igas))        
   end if
 
+
+  ! supsatl close to 0 causes carma to crash
+  if (abs(supsatl(iz,igas)) < 1e-16) then
+    supsatl(iz,igas) = -1e-16
+  end if
+
   return
+
+
 end
 
 

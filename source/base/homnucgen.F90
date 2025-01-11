@@ -61,9 +61,9 @@ subroutine homnucgen(carma,cstate, iz, rc)
       else if ((igas .eq. igass8) .or. (igas .eq. igass2)) then
         rho_cond = RHO_SX
       else if (igas .eq. igaskcl) then
-	rho_cond = RHO_KCL
+	      rho_cond = RHO_KCL
       else if (igas .eq. igaszns) then
-	rho_cond = RHO_ZNS
+	      rho_cond = RHO_ZNS
       else if (igas .eq. igasna2s) then
         rho_cond = RHO_NA2S
       else if (igas .eq. igasmns) then
@@ -86,6 +86,9 @@ subroutine homnucgen(carma,cstate, iz, rc)
       rvap = RGAS / gwtmol_dif(igas)
       gc_cgs = gc(iz,igas) / (zmet(iz)*xmet(iz)*ymet(iz))
 
+      ! write(*, *) 'akelvin:', akelvin(iz,igas), 'supsatl:', supsatl(iz,igas), 'iz:', iz, 'igas:', igas
+
+
       agnuc = max(0._f,akelvin(iz,igas)/log(supsatl(iz,igas) + 1._f))
 
       if (agnuc .eq. 0._f) then
@@ -93,22 +96,24 @@ subroutine homnucgen(carma,cstate, iz, rc)
         nucrate = 0._f
       else
         deltafg = 4._f / 3._f * PI * surftens * agnuc**2._f 		! For user's choice condensate only  
-	fluxmol = gc_cgs * rvap * t(iz) / sqrt(2._f * PI * &
-	  (gwtmol_dif(igas) / AVG) * BK * t(iz))
-	molgerm = 4._f / 3._f * PI * rho_cond * agnuc**3._f &
-	  / gwtmol(igas) * AVG
+	        fluxmol = gc_cgs * rvap * t(iz) / sqrt(2._f * PI * &
+	        (gwtmol_dif(igas) / AVG) * BK * t(iz))
+        	molgerm = 4._f / 3._f * PI * rho_cond * agnuc**3._f &
+	        / gwtmol(igas) * AVG
+
+        
         cmass = 4._f / 3._f * PI * agnuc**3._f * rho_cond
 
         nucrate = 4._f * PI * agnuc**2._f * fluxmol &
-	  * sqrt(deltafg / (3._f * PI * BK * t(iz) * &
-          molgerm**2._f)) * (gc_cgs / gwtmol_dif(igas) * AVG) * &
-  	  exp( -1._f * deltafg / (BK * t(iz)))
+	      * sqrt(deltafg / (3._f * PI * BK * t(iz) * &
+        molgerm**2._f)) * (gc_cgs / gwtmol_dif(igas) * AVG) * &
+  	    exp( -1._f * deltafg / (BK * t(iz)))
   	  
 !        if (igas .eq. 2) then
 !        write(*,*) 'iz, igas, dtime, nucrate, surftens, agnuc, fluxmol, &
 !	  deltafg, molgerm, gc_cgs,  -1._f * deltafg / (BK * t(iz)),supsatl(iz,igas) + 1._f'
-!        write(*,*) iz, igas, dtime, nucrate, surftens, agnuc, fluxmol, &
-!          deltafg, molgerm, gc_cgs,  -1._f * deltafg / (BK * t(iz)),supsatl(iz,igas) + 1._f
+        ! write(*,*) iz, igas, dtime, nucrate, surftens, agnuc, fluxmol, &
+        !  deltafg, molgerm, gc_cgs,  -1._f * deltafg / (BK * t(iz)),supsatl(iz,igas) + 1._f
 !       endif
 
        !   Calc bin # of crit nucleus
@@ -118,7 +123,7 @@ subroutine homnucgen(carma,cstate, iz, rc)
           nucbin = 2 + int(log(cmass / rmassup(1,igroup)) / log(rmrat(igroup)))
         endif
  
- 		!write(*,*) 'hello', nucrate, cmass, akelvin(iz,igas), supsatl(iz,igas), log(supsatl(iz,igas) + 1._f), log(1._f)
+ 		    ! write(*,*) 'hello', nucrate, cmass, akelvin(iz,igas), supsatl(iz,igas), log(supsatl(iz,igas) + 1._f), log(1._f)
  		
         ! If none of the bins are large enough for the critical radius, then
         ! no nucleation will occur.
@@ -126,7 +131,7 @@ subroutine homnucgen(carma,cstate, iz, rc)
           nucbin  = 0 
           nucrate = 0._f
         else
-  	  nucrate = nucrate*cmass/rmass(nucbin,igroup)
+  	      nucrate = nucrate*cmass/rmass(nucbin,igroup)
         endif
       endif
 

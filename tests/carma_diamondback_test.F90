@@ -23,7 +23,7 @@ subroutine test_day()
 
   implicit none
 
-  integer, parameter    :: NZ           = 54
+  integer, parameter    :: NZ           = 89
   integer, parameter    :: NZP1         = NZ+1
   integer, parameter    :: NELEM        = 18
   integer, parameter    :: NBIN         = 80
@@ -33,7 +33,7 @@ subroutine test_day()
   integer, parameter    :: NWAVE        = 0
   integer, parameter    :: ilongitude   = 64
 
-  real(kind=f), parameter   :: dtime  = 1000._f
+  real(kind=f), parameter   :: dtime  = 100._f
   real(kind=f), parameter   :: deltax = 100._f
   real(kind=f), parameter   :: deltay = 100._f
   real(kind=f), parameter   :: deltaz = 200._f
@@ -42,8 +42,8 @@ subroutine test_day()
 
  ! integer, parameter    :: irestart     = 1  ! =1 to restart
   integer, parameter    :: irestart     = 0  ! =1 to restart
-!  integer, parameter    :: idiag     = 1  ! =1 to output diagnostic
-  integer, parameter    :: idiag     = 0  ! =1 to output diagnostic
+ integer, parameter    :: idiag     = 1  ! =1 to output diagnostic
+  ! integer, parameter    :: idiag     = 0  ! =1 to output diagnostic
   integer, parameter    :: iskip        = 1000 ! Output every iskip steps; no steps skipped if = 1
   integer, parameter    :: nstep        = 1000000
 
@@ -181,8 +181,8 @@ subroutine test_day()
   character(len=6)	:: rates = 'rates_'
   character(len=4)	:: filesuffix = '.txt'
   character(len=4)	:: filesuffix_restart = '.dat'
-  character(len=100)	:: filename_restart = 'day_big'
-  character(len=100)	:: filename = 'day_big'
+  character(len=100)	:: filename_restart = 'diamondback_test'
+  character(len=100)	:: filename = 'diamondback_test'
 
   ! KCl     = 1
   ! ZnS     = 2
@@ -309,7 +309,7 @@ subroutine test_day()
   else
     call CARMA_Create(carma, NBIN, NELEM, NGROUP, NSOLUTE, NGAS, NWAVE, rc, LUNOPRT=6)
   end if
-  if (rc < 0) stop "    *** FAILED ***"
+  if (rc < 0) stop "    *** FAILED in CARMA_Create ***"
 
 	carma_ptr => carma
 
@@ -632,7 +632,7 @@ subroutine test_day()
                         do_explised=.FALSE., do_substep=.TRUE., do_print_init=.TRUE., &
                         do_vdiff=.TRUE., do_vtran=.TRUE., maxsubsteps=10, maxretries=20, &
                         itbnd_pc=I_FLUX_SPEC, ibbnd_pc=I_FIXED_CONC, itbnd_gc=I_FLUX_SPEC, ibbnd_gc=I_FIXED_CONC)
-  if (rc < 0) stop "    *** FAILED ***"
+  if (rc < 0) stop "    *** FAILED CARMA_Initialize ***"
 
   write(*,*) " "
 
@@ -717,7 +717,7 @@ subroutine test_day()
 
   do igroup = 1, NGROUP
     call CARMAGROUP_Get(carma, igroup, rc, r=r, rlow=rlow, rup=rup, dr=dr, rmass=rmass(:,igroup))
-    if (rc < 0) stop "    *** FAILED ***"
+    if (rc < 0) stop "    *** FAILED CARMAGROUP_Get ***"
 
     do ibin = 1, NBIN
       write(lun,'(2i4,5e15.5)') igroup, ibin, r(ibin) * 1e4_f, rmass(ibin,igroup), dr(ibin) * 1e4_f, rlow(ibin) * 1e4_f, rup(ibin) * 1e4_f
@@ -734,7 +734,7 @@ subroutine test_day()
 
     do ielem = 1, NELEM
       call CARMAELEMENT_Get(carma, ielem, rc, igroup=igroup, name=name)
-      if (rc < 0) stop "    *** FAILED ***"
+      if (rc < 0) stop "    *** FAILED CARMA_ELEMENT_Get ***"
       write(lundiagn,'(i8,i10,A35)') ielem, igroup, name
     end do
 
@@ -743,7 +743,7 @@ subroutine test_day()
 
     do igas = 1, NGAS
       call CARMAGAS_Get(carma, igas, rc, name=gname, wtmol=wtmol)
-      if (rc < 0) stop "    *** FAILED ***"
+      if (rc < 0) stop "    *** FAILED CARMAGAS_Get ***"
       write(lundiagn,'(i4,A40,e10.3)') igas, gname, wtmol
     end do
 
@@ -883,7 +883,7 @@ subroutine test_day()
                          	      yc(:), dy(:), &
                          	      zc(:), zl(:), p(:), &
                          	      pl(:), t(:), wtmol_air(:), grav(:), rplanet, rc, winds=winds(:), ekz=ekz(:), met=met, t0 = t0_in)
-  if (rc < 0) stop "    *** FAILED ***"
+  if (rc < 0) stop "    *** FAILED CARMASTATE_CreateFromReference ***"
 
   ! Iterate the model over a few time steps.
   do istep = 1, nstep
@@ -943,48 +943,48 @@ subroutine test_day()
                            pl(:), t(:), wtmol_air(:), grav(:), rplanet, rc, told=t(:), winds=winds(:), ekz=ekz(:), &
 			   ftopp=ftopp,fbotp=fbotp,pctop=pctop,pcbot=pcbot, &
 			   gctop=gctop,gcbot=gcbot,ftopg=ftopg,fbotg=fbotg,met=met)
-    if (rc < 0) stop "    *** FAILED ***"
+    if (rc < 0) stop "    *** FAILED CARMASTATE_Create ***"
 
 
     ! Send the bin mmrs to CARMA
     do ielem = 1, NELEM
       do ibin = 1, NBIN
         call CARMASTATE_SetBin(cstate, ielem, ibin, mmr(:,ielem,ibin), rc)
-        if (rc < 0) stop "    *** FAILED ***"
+        if (rc < 0) stop "    *** FAILED CARMASTATE_SetBin ***"
       end do
     end do
 
     do igas = 1, NGAS
       call CARMASTATE_SetGas(cstate, igas, mmr_gas(:,igas), rc, mmr_old=mmr_gas_old(:,igas), &
                              satice_old=satice(:,igas), satliq_old=satliq(:,igas))
-      if (rc < 0) stop "    *** FAILED ***"
+      if (rc < 0) stop "    *** FAILED CARMASTATE_SetGas ***"
     end do
 
     ! Execute the step
     call CARMASTATE_Step(cstate, rc)
-    if (rc < 0) stop "    *** FAILED ***"
+    if (rc < 0) stop "    *** FAILED CARMASTATE_Step ***"
 
     ! Get the retry stats and the updated temperature.
     call CARMASTATE_Get(cstate, rc, nsubstep=nsubsteps, nretry=nretries, zsubsteps=zsubsteps)
-    if (rc < 0) stop "    *** CARMASTATE_Get FAILED ***"
+    if (rc < 0) stop "    ***  FAILED CARMASTATE_Get ***"
 
     ! Get the updated bin mmr.
     do ielem = 1, NELEM
       do ibin = 1, NBIN
         call CARMASTATE_GetBin(cstate, ielem, ibin, mmr(:,ielem,ibin), rc, numberDensity=numden(:,ielem,ibin), pflux=pflux(:,ibin,ielem))
-        if (rc < 0) stop "    *** FAILED ***"
+        if (rc < 0) stop "    *** FAILED CARMASTATE_GetBin ***"
       end do
     end do
 
     do igas = 1, NGAS
       call CARMASTATE_GetGas(cstate, igas, mmr_gas(:,igas), rc, satliq=satliq(:,igas), &
                              satice=satice(:,igas), eqliq = svpliq(:,igas), wtpct=wtpct(:,igas), gflux=gflux(:,igas))
-      if (rc < 0) stop "    *** FAILED ***"
+      if (rc < 0) stop "    *** FAILED CARMASTATE_GetGas ***"
     end do
 
     call CARMASTATE_GetDiag(cstate,rc,rhompe_tot=rhompe,growpe_tot=growpe,evappe_tot=evappe, &
                             growlg_tot=growlg,evaplg_tot=evaplg,gasprod_tot=gasprod)
-    if (rc < 0) stop "    *** FAILED ***"
+    if (rc < 0) stop "    *** FAILED CARMASTATE_GetDiag ***"
 
     mmr_gas_old = mmr_gas
 
@@ -1194,7 +1194,7 @@ subroutine test_day()
 
   ! Cleanup the carma state objects
   call CARMASTATE_Destroy(cstate, rc)
-  if (rc < 0) stop "    *** FAILED ***"
+  if (rc < 0) stop "    *** FAILED CARMASTATE_Destroy ***"
 
   ! Close the output file
   close(unit=lun)
@@ -1209,6 +1209,6 @@ subroutine test_day()
   write(*,*)  ""
   write(*,*) "CARMA_Destroy() ..."
   call CARMA_Destroy(carma, rc)
-  if (rc < 0) stop "    *** FAILED ***"
+  if (rc < 0) stop "    *** FAILED CARMA_Destroy ***"
 
 end subroutine

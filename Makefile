@@ -14,7 +14,7 @@ F90DOC = ../../bin/f90doc-0.4.0/f90doc
 PACKAGE =	CARMA
 TGZ =		CARMA.tar
 
-FFLAGS = -ggdb -O0 -traceback
+FFLAGS = #-ggdb -O0 -traceback
 #FFLAGS += -DSINGLE                    # for single precision
 #FFLAGS += -DDEBUG                     # for debug print statements
 

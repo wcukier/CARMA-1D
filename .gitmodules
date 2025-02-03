@@ -1,0 +1,3 @@
+[submodule "CApyBaRA"]
+	path = CApyBaRA
+	url = https://github.com/wcukier/CApyBaRA

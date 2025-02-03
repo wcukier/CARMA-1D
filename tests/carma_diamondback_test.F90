@@ -23,6 +23,8 @@ subroutine test_day()
 
   implicit none
 
+  integer, parameter    :: io = 90
+
   integer, parameter    :: NZ           = 89
   integer, parameter    :: NZP1         = NZ+1
   integer, parameter    :: NELEM        = 18
@@ -42,8 +44,8 @@ subroutine test_day()
 
  ! integer, parameter    :: irestart     = 1  ! =1 to restart
   integer, parameter    :: irestart     = 0  ! =1 to restart
- integer, parameter    :: idiag     = 1  ! =1 to output diagnostic
-  ! integer, parameter    :: idiag     = 0  ! =1 to output diagnostic
+!  integer, parameter    :: idiag     = 1  ! =1 to output diagnostic
+  integer, parameter    :: idiag     = 0  ! =1 to output diagnostic
   integer, parameter    :: iskip        = 1000 ! Output every iskip steps; no steps skipped if = 1
   integer, parameter    :: nstep        = 1000000
 
@@ -87,7 +89,7 @@ subroutine test_day()
   real(kind=f), allocatable   :: gflux(:,:)
   real(kind=f), allocatable   :: pflux(:,:,:)
   real(kind=f), allocatable   :: winds(:)
-!  real(kind=f), allocatable   :: ekz(:)
+  ! real(kind=f), allocatable   :: ekz(:)
   real(kind=f), allocatable   :: prodrate(:,:,:)
   real(kind=f), allocatable   :: prodrate_mass(:,:,:)
   real(kind=f), allocatable   :: prodrate_gas(:,:)
@@ -136,6 +138,7 @@ subroutine test_day()
   integer, parameter    :: lunfp = 45
   integer, parameter    :: lunres = 46
   integer, parameter    :: lundiagn = 47
+  integer, parameter    :: gas_in = 61
   integer               :: nsubsteps
   integer               :: binmultiple
   integer               :: lastsub = 0
@@ -172,17 +175,24 @@ subroutine test_day()
   real(kind=f)          :: time
   real(kind=f)          :: rmin, rmrat, wtmol
 
+  real(kind=f)          :: wtmol_air_set, grav_set
+
   character(30)      	:: name
   character(30)      	:: gname
-  character(len=3)	:: fileprefix = 'hj_'
+  character(len=3)	:: fileprefix
   character(len=5)	:: temp = 'temp_'
   character(len=5)	:: flux = 'flux_'
   character(len=5)	:: diag = 'diag_'
   character(len=6)	:: rates = 'rates_'
   character(len=4)	:: filesuffix = '.txt'
   character(len=4)	:: filesuffix_restart = '.dat'
-  character(len=100)	:: filename_restart = 'diamondback_test'
-  character(len=100)	:: filename = 'diamondback_test'
+  character(len=100)	:: filename_restart
+  character(len=100)	:: filename
+  character(len=100)  :: nml_file = "input.nml"
+  character(len=100)  :: gas_input_file
+  character(len=100)  :: centers_file
+  character(len=100)  :: levels_file
+
 
   ! KCl     = 1
   ! ZnS     = 2
@@ -204,13 +214,21 @@ subroutine test_day()
   real(kind=f)          :: distance_btwn_elements, circumference, rotation_counter, slope, intercept
   real(kind=f)          :: current_distance, closeto_temp_profile, num_steps_btwn, current_step, RPLANET_DAT, velocity_avg
 
+  namelist / io_files / filename, filename_restart, fileprefix, gas_input_file, centers_file, levels_file
+  namelist / physical_params / wtmol_air_set, grav_set
+
+
   write(*,*) ""
 
+  open(unit=10, file=nml_file, status='old')
+    read(10, nml=io_files)
+    read(10, nml=physical_params)
+  close(10)
 
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-  open(12, file = 'diamondbacktest_centers.txt')
+  open(12, file = centers_file)!PARAM
 
  do i = 1, NZ
  	read(12,*) alt(i), pre(i), tempr(i)
@@ -218,7 +236,7 @@ subroutine test_day()
 
  close(12)
 
- open(13, file = 'diamondbacktest_centers.txt')
+ open(13, file = levels_file) !PARAM
 
  do i=1, NZP1
    read(13,*) altl(i), prel(i), ekz(i)
@@ -243,8 +261,8 @@ subroutine test_day()
 !  	end if
 ! end do
 
-  wtmol_air(:) = 2.3202_f
-  grav(:) = 426._f !cm/s^2
+  wtmol_air(:) =wtmol_air_set !PARAM
+  grav(:) = grav_set !cm/s^2 PARAM
   met = 1._f
   tio2_in = 5.913558445076336e-09_f
 
@@ -873,7 +891,7 @@ subroutine test_day()
          evappe, growlg, evaplg
      write(*,*)'read restart file'
      rewind(lunres)
-!     istep = istep + 1
+     !     istep = istep + 1
     close(unit=lunres)
   endif
 
@@ -913,7 +931,7 @@ subroutine test_day()
       write(lundiagn,*) '****************************************'
       write(lundiagn,'(A6,2A15)') 'Z', 'PARTMASS', 'GASMASS'
       do iz = 1, NZ
-	write(lundiagn,'(i6,2e15.3)') iz, totmass(iz), (mmr_gas(iz,1)+mmr_gas(iz,2)) * abs((pl(iz+1) - pl(iz))) / 88.7_f / deltaz / 100._f
+	    write(lundiagn,'(i6,2e15.3)') iz, totmass(iz), (mmr_gas(iz,1)+mmr_gas(iz,2)) * abs((pl(iz+1) - pl(iz))) / 88.7_f / deltaz / 100._f
       end do
       write(lundiagn,*) ' '
       write(lundiagn,'(A6,2e15.3)') 'TOT:',sum(totmass), &
@@ -997,27 +1015,46 @@ subroutine test_day()
  ! write(*,*) rmass
 
 
-     if (istep .eq. 1) then
-       !mmr_gas(1,2) = min(1.69e-7_f * (WTMOL_TIO2 / wtmol_air(1)) * 10._f**met,svpliq(1,2) * (WTMOL_TIO2 / wtmol_air(1)))
-       mmr_gas(1,2) = min(tio2_in * (WTMOL_TIO2 / wtmol_air(1)),svpliq(1,2) * (WTMOL_TIO2 / wtmol_air(1)))
-       mmr_gas(1,3) = min(5.78e-5_f * (WTMOL_FE / wtmol_air(1)) * 10._f**met,svpliq(1,3) * (WTMOL_FE / wtmol_air(1)))
-       mmr_gas(1,4) = min(5.936e-5_f * (WTMOL_MG / wtmol_air(1)) * 10._f**met,svpliq(1,4) * (WTMOL_MG / wtmol_air(1)))
-       mmr_gas(1,5) = min(8.87e-7_f * (WTMOL_CR / wtmol_air(1)) * 10._f**met,svpliq(1,5) * (WTMOL_CR / wtmol_air(1)))
-       mmr_gas(1,6) = min(5.41e-7 * (WTMOL_MN / wtmol_air(1)) * 10._f**met,svpliq(1,6) * (WTMOL_MN / wtmol_air(1)))
-       mmr_gas(1,7) = min(3.34e-6_f * (WTMOL_NA / wtmol_air(1)) * 10._f**met,svpliq(1,7) * (WTMOL_NA / wtmol_air(1)))
-       mmr_gas(1,8) = min(7.65e-8_f * (WTMOL_ZN / wtmol_air(1)) * 10._f**met,svpliq(1,8) * (WTMOL_ZN / wtmol_air(1)))
-       mmr_gas(1,9) = min(2.2e-7_f * (WTMOL_KCL / wtmol_air(1)) * 10._f**met,svpliq(1,9) * (WTMOL_KCL / wtmol_air(1)))
-       mmr_gas(1,10) = min(4.937e-6_f * (WTMOL_AL / wtmol_air(1)) * 10._f**met,svpliq(1,10) * (WTMOL_AL / wtmol_air(1)))
-       !gcbot(2) = min(1.69e-7_f * (WTMOL_TIO2 / wtmol_air(1)) * 10._f**met,svpliq(1,2) * (WTMOL_TIO2 / wtmol_air(1)))
-       gcbot(2) = min(tio2_in * (WTMOL_TIO2 / wtmol_air(1)),svpliq(1,2) * (WTMOL_TIO2 / wtmol_air(1)))
-       gcbot(3) = min(5.78e-5_f * (WTMOL_FE / wtmol_air(1)) * 10._f**met,svpliq(1,3) * (WTMOL_FE / wtmol_air(1)))
-       gcbot(4) = min(5.936e-5_f * (WTMOL_MG / wtmol_air(1)) * 10._f**met,svpliq(1,4) * (WTMOL_MG / wtmol_air(1)))
-       gcbot(5) = min(8.87e-7_f * (WTMOL_CR / wtmol_air(1)) * 10._f**met,svpliq(1,5) * (WTMOL_CR / wtmol_air(1)))
-       gcbot(6) = min(5.41e-7 * (WTMOL_MN / wtmol_air(1)) * 10._f**met,svpliq(1,6) * (WTMOL_MN / wtmol_air(1)))
-       gcbot(7) = min(3.34e-6_f * (WTMOL_NA / wtmol_air(1)) * 10._f**met,svpliq(1,7) * (WTMOL_NA / wtmol_air(1)))
-       gcbot(8) = min(7.65e-8_f * (WTMOL_ZN / wtmol_air(1)) * 10._f**met,svpliq(1,8) * (WTMOL_ZN / wtmol_air(1)))
-       gcbot(9) = min(2.2e-7_f * (WTMOL_KCL / wtmol_air(1)) * 10._f**met,svpliq(1,9) * (WTMOL_KCL / wtmol_air(1)))
-       gcbot(10) = min(4.937e-6_f * (WTMOL_AL / wtmol_air(1)) * 10._f**met,svpliq(1,10) * (WTMOL_AL / wtmol_air(1)))
+     if (istep .eq. 1) then !PARAM
+      open(unit=gas_in, file=gas_input_file, status='old')
+      do i = 1, NZ
+        READ(gas_in, *) mmr_gas(i, :)
+        mmr_gas(i,1) = min(mmr_gas(i,1) * (WTMOL_H2O/ wtmol_air(1)) * 10._f**met,svpliq(1,2) * (WTMOL_H2O / wtmol_air(1)))
+        mmr_gas(i,2) = min(mmr_gas(i,2) * (WTMOL_TIO2 / wtmol_air(1)) * 10._f**met,svpliq(1,2) * (WTMOL_TIO2 / wtmol_air(1)))
+        mmr_gas(i,3) = min(mmr_gas(i,3) * (WTMOL_FE / wtmol_air(1)) * 10._f**met,svpliq(1,3) * (WTMOL_FE / wtmol_air(1)))
+        mmr_gas(i,4) = min(mmr_gas(i,4) * (WTMOL_MG / wtmol_air(1)) * 10._f**met,svpliq(1,4) * (WTMOL_MG / wtmol_air(1)))
+        mmr_gas(i,5) = min(mmr_gas(i,5) * (WTMOL_CR / wtmol_air(1)) * 10._f**met,svpliq(1,5) * (WTMOL_CR / wtmol_air(1)))
+        mmr_gas(i,6) = min(mmr_gas(i,6)* (WTMOL_MN / wtmol_air(1)) * 10._f**met,svpliq(1,6) * (WTMOL_MN / wtmol_air(1)))
+        mmr_gas(i,7) = min(mmr_gas(i,7) * (WTMOL_NA / wtmol_air(1)) * 10._f**met,svpliq(1,7) * (WTMOL_NA / wtmol_air(1)))
+        mmr_gas(i,8) = min(mmr_gas(i,8) * (WTMOL_ZN / wtmol_air(1)) * 10._f**met,svpliq(1,8) * (WTMOL_ZN / wtmol_air(1)))
+        mmr_gas(i,9) = min(mmr_gas(i,9) * (WTMOL_KCL / wtmol_air(1)) * 10._f**met,svpliq(1,9) * (WTMOL_KCL / wtmol_air(1)))
+        mmr_gas(i,10) = min(mmr_gas(i,10) * (WTMOL_AL / wtmol_air(1)) * 10._f**met,svpliq(1,10) * (WTMOL_AL / wtmol_air(1)))
+      end do
+      close(unit=gas_in)
+      do i=1, NGAS
+        gcbot(i) = mmr_gas(1, i)
+      end do
+
+      !  mmr_gas(1,2) = min(1.36e-7_f * (WTMOL_TIO2 / wtmol_air(1)) * 10._f**met,svpliq(1,2) * (WTMOL_TIO2 / wtmol_air(1)))
+      ! !  mmr_gas(1,2) = min(tio2_in * (WTMOL_TIO2 / wtmol_air(1)),svpliq(1,2) * (WTMOL_TIO2 / wtmol_air(1)))
+      !  mmr_gas(1,3) = min(2.766e-5_f * (WTMOL_FE / wtmol_air(1)) * 10._f**met,svpliq(1,3) * (WTMOL_FE / wtmol_air(1)))
+      !  mmr_gas(1,4) = min(2.766e-5_f * (WTMOL_MG / wtmol_air(1)) * 10._f**met,svpliq(1,4) * (WTMOL_MG / wtmol_air(1)))
+      !  mmr_gas(1,5) = min(2.766e-7 * (WTMOL_CR / wtmol_air(1)) * 10._f**met,svpliq(1,5) * (WTMOL_CR / wtmol_air(1)))
+      !  mmr_gas(1,6) = min(1.0e-6_f * (WTMOL_MN / wtmol_air(1)) * 10._f**met,svpliq(1,6) * (WTMOL_MN / wtmol_air(1)))
+      !  mmr_gas(1,7) = min(1.0e-5_f * (WTMOL_NA / wtmol_air(1)) * 10._f**met,svpliq(1,7) * (WTMOL_NA / wtmol_air(1)))
+      !  mmr_gas(1,8) = min(7.65e-7_f * (WTMOL_ZN / wtmol_air(1)) * 10._f**met,svpliq(1,8) * (WTMOL_ZN / wtmol_air(1)))
+      !  mmr_gas(1,9) = min(5.6e-6_f * (WTMOL_KCL / wtmol_air(1)) * 10._f**met,svpliq(1,9) * (WTMOL_KCL / wtmol_air(1)))
+      !  mmr_gas(1,10) = min(4.937e-6_f * (WTMOL_AL / wtmol_air(1)) * 10._f**met,svpliq(1,10) * (WTMOL_AL / wtmol_air(1)))
+      !  gcbot(2) = min(1.36e-7_f * (WTMOL_TIO2 / wtmol_air(1)) * 10._f**met,svpliq(1,2) * (WTMOL_TIO2 / wtmol_air(1)))
+      ! !  gcbot(2) = min(tio2_in * (WTMOL_TIO2 / wtmol_air(1)),svpliq(1,2) * (WTMOL_TIO2 / wtmol_air(1)))
+      !  gcbot(3) = min(2.766e-5_f  * (WTMOL_FE / wtmol_air(1)) * 10._f**met,svpliq(1,3) * (WTMOL_FE / wtmol_air(1)))
+      !  gcbot(4) = min(2.766e-5_f  * (WTMOL_MG / wtmol_air(1)) * 10._f**met,svpliq(1,4) * (WTMOL_MG / wtmol_air(1)))
+      !  gcbot(5) = min(2.766e-7_f * (WTMOL_CR / wtmol_air(1)) * 10._f**met,svpliq(1,5) * (WTMOL_CR / wtmol_air(1)))
+      !  gcbot(6) = min(1.0e-6_f * (WTMOL_MN / wtmol_air(1)) * 10._f**met,svpliq(1,6) * (WTMOL_MN / wtmol_air(1)))
+      !  gcbot(7) = min(1.0e-5_f * (WTMOL_NA / wtmol_air(1)) * 10._f**met,svpliq(1,7) * (WTMOL_NA / wtmol_air(1)))
+      !  gcbot(8) = min(7.65e-7_f * (WTMOL_ZN / wtmol_air(1)) * 10._f**met,svpliq(1,8) * (WTMOL_ZN / wtmol_air(1)))
+      !  gcbot(9) = min(5.6e-6_f * (WTMOL_KCL / wtmol_air(1)) * 10._f**met,svpliq(1,9) * (WTMOL_KCL / wtmol_air(1)))
+      !  gcbot(10) = min(4.937e-6_f * (WTMOL_AL / wtmol_air(1)) * 10._f**met,svpliq(1,10) * (WTMOL_AL / wtmol_air(1)))
      endif
 
 
@@ -1137,7 +1174,7 @@ subroutine test_day()
       write(lundiagn,*) '****************************************'
       write(lundiagn,'(A6,2A15)') 'Z', 'PARTMASS', 'GASMASS'
       do iz = 1, NZ
-	write(lundiagn,'(i6,2e15.3)') iz, totmass(iz), (mmr_gas(iz,1)+mmr_gas(iz,2)) * abs((pl(iz+1) - pl(iz))) / 88.7_f / deltaz / 100._f
+	      write(lundiagn,'(i6,2e15.3)') iz, totmass(iz), (mmr_gas(iz,1)+mmr_gas(iz,2)) * abs((pl(iz+1) - pl(iz))) / 88.7_f / deltaz / 100._f
       end do
       write(lundiagn,*) ' '
       write(lundiagn,'(A6,2e15.3)') 'TOT:',sum(totmass), &
@@ -1162,7 +1199,7 @@ subroutine test_day()
       write(lundiagn,'(A45,e28.15)') 'Ab - Aa = ', endcd - startcd
       write(lundiagn,'(A45,e28.15)') '(B + C + D) * E = ', (inputrate + vertgasflux + vertpartflux) * dtime
       write(lundiagn,'(A45,e28.15)') 'Ab - Aa -[(B + C + D) * E] = ', endcd - startcd - &
-	[(inputrate + vertpartflux + vertgasflux) * dtime]
+	    [(inputrate + vertpartflux + vertgasflux) * dtime]
       write(lundiagn,*) ''
       write(lundiagn,*) '************************************************************10000000******************'
       write(lundiagn,*) ''

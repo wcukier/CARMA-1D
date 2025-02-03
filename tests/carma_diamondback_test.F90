@@ -1032,7 +1032,7 @@ subroutine test_day()
       end do
       close(unit=gas_in)
       do i=1, NGAS
-        gcbot(i) = mmr_gas(1, i)
+        gcbot(i) = mmr_gas(1, i) + 1e-50_f
       end do
 
       !  mmr_gas(1,2) = min(1.36e-7_f * (WTMOL_TIO2 / wtmol_air(1)) * 10._f**met,svpliq(1,2) * (WTMOL_TIO2 / wtmol_air(1)))

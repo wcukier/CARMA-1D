@@ -4,3 +4,8 @@
 *.o
 hj_*
 *.err
+.vscode/settings.json
+run/carma/*.txt
+run/carma/*.dat
+source/base/*.mod
+

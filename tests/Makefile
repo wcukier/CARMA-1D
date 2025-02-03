@@ -46,3 +46,6 @@ carma_eastsmall.o : carma_eastsmall.F90 atmosphere_mod.mod carma_mod.mod carma_p
 
 carma_westsmall.o : carma_westsmall.F90 atmosphere_mod.mod carma_mod.mod carma_planet_mod.mod carma_condensate_mod.mod carma_constants_mod.mod carma_precision_mod.mod 
 	$(FORTRAN) $(FFLAGS) -c $<
+
+carma_diamondback_test.o : carma_diamondback_test.F90 atmosphere_mod.mod carma_mod.mod carma_planet_mod.mod carma_condensate_mod.mod carma_constants_mod.mod carma_precision_mod.mod 
+	$(FORTRAN) $(FFLAGS) -c $<

@@ -46,6 +46,7 @@ contains
     real(kind=f), optional, intent(in)    :: ds_threshold    !! convergence criteria for gas saturation [0 : off; > 0 : percentage change; < 0 : amount past 0 crossing]
     real(kind=f), optional, intent(in)    :: wtmol_dif       !! gas molecular weight in vapor phase [g/mol]
 
+    write(*, *) ivaprtn
     ! Assume success.
     rc = RC_OK
     
@@ -63,7 +64,7 @@ contains
     carma%f_gas(igas)%f_ivaprtn      = ivaprtn
     carma%f_gas(igas)%f_icomposition = icomposition
     
-    
+
     ! Defaults for optional parameters
     carma%f_gas(igas)%f_shortname       = ""
     carma%f_gas(igas)%f_dgc_threshold   = 0._f
@@ -75,6 +76,8 @@ contains
     if (present(dgc_threshold)) carma%f_gas(igas)%f_dgc_threshold  = dgc_threshold
     if (present(ds_threshold))  carma%f_gas(igas)%f_ds_threshold   = ds_threshold
     if (present(wtmol_dif))  carma%f_gas(igas)%f_wtmol_dif         = wtmol_dif
+
+
 
     return
   end subroutine CARMAGAS_Create

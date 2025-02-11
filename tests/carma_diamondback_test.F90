@@ -25,29 +25,30 @@ subroutine test_day()
 
   integer, parameter    :: io = 90
 
-  integer, parameter    :: NZ           = 89
-  integer, parameter    :: NZP1         = NZ+1
-  integer, parameter    :: NELEM        = 18
-  integer, parameter    :: NBIN         = 80
-  integer, parameter    :: NGROUP       = 11
-  integer, parameter    :: NSOLUTE      = 1
-  integer, parameter    :: NGAS         = 10
-  integer, parameter    :: NWAVE        = 0
-  integer, parameter    :: ilongitude   = 64
+  integer    :: NZ    
+  integer    :: NZP1        
+  integer    :: NELEM 
+  integer    :: NBIN    
+  integer    :: NGROUP     
+  integer    :: NSOLUTE   
+  integer   :: NGAS        
+  integer    :: NWAVE  
+  integer    :: ilongitude 
+  integer   :: NGROWTH, NNUC
 
-  real(kind=f), parameter   :: dtime  = 100._f
+  real(kind=f)   :: dtime 
   real(kind=f), parameter   :: deltax = 100._f
   real(kind=f), parameter   :: deltay = 100._f
   real(kind=f), parameter   :: deltaz = 200._f
   real(kind=f), parameter   :: zmin   = 0._f
-  real(kind=f), parameter   :: rplanet = 6.991e9_f
+  real(kind=f)   :: rplanet 
 
  ! integer, parameter    :: irestart     = 1  ! =1 to restart
-  integer, parameter    :: irestart     = 0  ! =1 to restart
+  integer    :: irestart    ! =1 to restart
 !  integer, parameter    :: idiag     = 1  ! =1 to output diagnostic
-  integer, parameter    :: idiag     = 0  ! =1 to output diagnostic
-  integer, parameter    :: iskip        = 1000 ! Output every iskip steps; no steps skipped if = 1
-  integer, parameter    :: nstep        = 1000000
+  integer    :: idiag   ! =1 to output diagnostic
+  integer    :: iskip        ! Output every iskip steps; no steps skipped if = 1
+  integer    :: nstep        
 
   integer, parameter        :: I_KCL       = 1
   integer, parameter        :: I_ZNS       = 2
@@ -124,13 +125,15 @@ subroutine test_day()
 
   integer               :: i
   integer               :: j
-  integer               :: istep, istep_old
+  integer               :: istep, istep_old, itype
+  integer               :: ifrom, ito, ievp2elem, is_het
   integer               :: igas
   integer               :: igroup
   integer               :: ielem
   integer               :: ibin
   integer               :: ibinm
   integer               :: iz
+  integer               :: icomposition, iroutine
   integer, parameter    :: lunerr = 48
   integer, parameter    :: lun = 42
   integer, parameter    :: lunp = 43
@@ -173,11 +176,14 @@ subroutine test_day()
   real(kind=f)          :: vertgasflux
 
   real(kind=f)          :: time
-  real(kind=f)          :: rmin, rmrat, wtmol
+  real(kind=f)          :: rmin, rmrat, wtmol, wtmol_dif, mucos
 
   real(kind=f)          :: wtmol_air_set, grav_set
+  real(kind=f)          :: rho 
+
 
   character(30)      	:: name
+  character(30)  :: type_spec
   character(30)      	:: gname
   character(len=3)	:: fileprefix
   character(len=5)	:: temp = 'temp_'
@@ -188,10 +194,16 @@ subroutine test_day()
   character(len=4)	:: filesuffix_restart = '.dat'
   character(len=100)	:: filename_restart
   character(len=100)	:: filename
-  character(len=100)  :: nml_file = "input.nml"
+  character(len=100)  :: nml_file = "inputs/input.nml"
   character(len=100)  :: gas_input_file
   character(len=100)  :: centers_file
   character(len=100)  :: levels_file
+  character(len=100)  :: groups_file
+  character(len=100)  :: elements_file
+  character(len=100)  :: gases_file
+  character(len=100)  :: growth_file
+  character(len=100)  :: nuc_file
+
 
 
   ! KCl     = 1
@@ -208,22 +220,34 @@ subroutine test_day()
   ! Heterogeneous Nucleation: (numbers of mantle material)nuc(number of core)
   ! Homogeneous Nucleation: (numbers of condensing material)hom
 
-  real(kind=f)          :: tempr(NZ), pre(NZ), prel(NZP1), alt(NZ), altl(NZP1), wtmol_air(NZ), grav(NZ), ekz(NZP1), ekzl(NZP1)
-  real(kind=f)          :: temp_equator(NZ, ilongitude), p_equator_center(NZ), p_equator_level(NZP1), velocity(ilongitude), longitudes(ilongitude)
+  ! real(kind=f)          :: tempr(NZ), pre(NZ), prel(NZP1), alt(NZ), altl(NZP1), wtmol_air(NZ), grav(NZ), ekz(NZP1), ekzl(NZP1)
+  ! real(kind=f)          :: temp_equator(NZ, ilongitude), p_equator_center(NZ), p_equator_level(NZP1), velocity(ilongitude), longitudes(ilongitude)
 
   real(kind=f)          :: distance_btwn_elements, circumference, rotation_counter, slope, intercept
   real(kind=f)          :: current_distance, closeto_temp_profile, num_steps_btwn, current_step, RPLANET_DAT, velocity_avg
 
-  namelist / io_files / filename, filename_restart, fileprefix, gas_input_file, centers_file, levels_file
-  namelist / physical_params / wtmol_air_set, grav_set
+  namelist / io_files / filename, filename_restart, fileprefix, gas_input_file, centers_file, levels_file, groups_file, elements_file, gases_file, growth_file, nuc_file
+  namelist / physical_params / wtmol_air_set, grav_set, rplanet
+  namelist / input_params / NZ, NELEM, NGROUP, NGAS, NBIN, NSOLUTE, NWAVE, ilongitude, irestart, idiag, iskip, nstep, dtime, NGROWTH, NNUC
+
+
+  real(kind=f), allocatable ::tempr(:), pre(:), prel(:), alt(:), altl(:), wtmol_air(:), grav(:), ekz(:), ekzl(:)
+  real(kind=f), allocatable ::temp_equator(:, :), p_equator_center(:), p_equator_level(:), velocity(:), longitudes(:)
+
 
 
   write(*,*) ""
 
   open(unit=10, file=nml_file, status='old')
+    read(10, nml=input_params)
     read(10, nml=io_files)
     read(10, nml=physical_params)
   close(10)
+
+  NZP1 = NZ + 1
+
+  allocate(tempr(NZ), pre(NZ), prel(NZP1), alt(NZ), altl(NZP1), wtmol_air(NZ), grav(NZ), ekz(NZP1), ekzl(NZP1))
+  allocate(temp_equator(NZ, ilongitude), p_equator_center(NZ), p_equator_level(NZP1), velocity(ilongitude), longitudes(ilongitude))
 
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -339,60 +363,19 @@ subroutine test_day()
   write(*,*) "  Add Group(s) ..."
   write(*,*) " "
 
-  write(*,*) "Add TiO2 ..."
-  call CARMAGROUP_Create(carma, 1, "Pure TiO2", 1e-8_f, 2._f, I_SPHERE, 1._f, &
-                         .FALSE., rc, do_vtran=.TRUE., is_sulfate=.FALSE.)
-  if (rc < 0) stop "    *** FAILED ***"
+  open(10, file = groups_file)
+  do i = 1, NGROUP
+    read(10, *) name, rmin
 
-  write(*,*) "Add Al2O3 ..."
-  call CARMAGROUP_Create(carma, 2, "Al2O3 on TiO2", 1e-8_f * 2._f**(1._f/3._f), 2._f, I_SPHERE, 1._f, &
-                         .FALSE., rc, do_vtran=.TRUE., is_sulfate=.FALSE.)
-  if (rc < 0) stop "    *** FAILED ***"
+    write(*,*) "Add " //TRIM(name)//"..."
 
-  write(*,*) "Add Fe ..."
-  call CARMAGROUP_Create(carma, 3, "Fe on TiO2", 1e-8_f * 2._f**(1._f/3._f), 2._f, I_SPHERE, 1._f, &
-                         .FALSE., rc, do_vtran=.TRUE., is_sulfate=.FALSE.)
-  if (rc < 0) stop "    *** FAILED ***"
+    call CARMAGROUP_Create(carma, i, name, rmin, 2._f, I_SPHERE, 1._f, &
+    .FALSE., rc, do_vtran=.TRUE., is_sulfate=.FALSE.)
 
-  write(*,*) "Add Mg2SiO4 ..."
-  call CARMAGROUP_Create(carma, 4, "Mg2SiO4 on TiO2", 1e-8_f * 2._f**(1._f/3._f), 2._f, I_SPHERE, 1._f, &
-                         .FALSE., rc, do_vtran=.TRUE., is_sulfate=.FALSE.)
-  if (rc < 0) stop "    *** FAILED ***"
+    if (rc < 0) stop "    *** FAILED ***"
 
-  write(*,*) "Add Cr ..."
-  call CARMAGROUP_Create(carma, 5, "Cr on TiO2", 1e-8_f * 2._f**(1._f/3._f), 2._f, I_SPHERE, 1._f, &
-                         .FALSE., rc, do_vtran=.TRUE., is_sulfate=.FALSE.)
-  if (rc < 0) stop "    *** FAILED ***"
-
-  write(*,*) "Add MnS ..."
-  call CARMAGROUP_Create(carma, 6, "MnS on TiO2", 1e-8_f * 2._f**(1._f/3._f), 2._f, I_SPHERE, 1._f, &
-                         .FALSE., rc, do_vtran=.TRUE., is_sulfate=.FALSE.)
-  if (rc < 0) stop "    *** FAILED ***"
-
-  write(*,*) "Add Na2S ..."
-  call CARMAGROUP_Create(carma, 7, "Na2S on TiO2", 1e-8_f * 2._f**(2._f/3._f), 2._f, I_SPHERE, 1._f, &
-                         .FALSE., rc, do_vtran=.TRUE., is_sulfate=.FALSE.)
-  if (rc < 0) stop "    *** FAILED ***"
-
-  write(*,*) "Add Fe ..."
-  call CARMAGROUP_Create(carma, 8, "Pure Fe", 1e-8_f, 2._f, I_SPHERE, 1._f, &
-                         .FALSE., rc, do_vtran=.TRUE., is_sulfate=.FALSE.)
-  if (rc < 0) stop "    *** FAILED ***"
-
-  write(*,*) "Add Cr ..."
-  call CARMAGROUP_Create(carma, 9, "Pure Cr", 1e-8_f, 2._f, I_SPHERE, 1._f, &
-                         .FALSE., rc, do_vtran=.TRUE., is_sulfate=.FALSE.)
-  if (rc < 0) stop "    *** FAILED ***"
-
-  write(*,*) "Add KCl ..."
-  call CARMAGROUP_Create(carma, 10, "Pure KCl", 1e-8_f, 2._f, I_SPHERE, 1._f, &
-                         .FALSE., rc, do_vtran=.TRUE., is_sulfate=.FALSE.)
-  if (rc < 0) stop "    *** FAILED ***"
-
-  write(*,*) "Add ZnS ..."
-  call CARMAGROUP_Create(carma, 11, "ZnS on KCl", 1e-8_f * 2._f**(1._f/3._f), 2._f, I_SPHERE, 1._f, &
-                         .FALSE., rc, do_vtran=.TRUE., is_sulfate=.FALSE.)
-  if (rc < 0) stop "    *** FAILED ***"
+  enddo
+  close(10)
 
   write(*,*) " "
 
@@ -402,77 +385,25 @@ subroutine test_day()
   write(*,*) "  Add Element(s) ..."
   write(*,*) " "
 
-  write(*,*) "Add TiO2 ..."
-  call CARMAELEMENT_Create(carma, 1, 1, "Pure TiO2", RHO_TIO2, I_VOLATILE, I_TIO2, rc)
-  if (rc < 0) stop "    *** FAILED ***"
+  open(10, file=elements_file)
+  do i=1, NELEM
+    read(10, *) igroup, name, rho, type_spec, icomposition
 
-  write(*,*) "Add Al2O3 Mantle ..."
-  call CARMAELEMENT_Create(carma, 2, 2, "Al2O3 Mantle", RHO_AL2O3, I_VOLATILE, I_AL2O3, rc)
-  if (rc < 0) stop "    *** FAILED ***"
 
-  write(*,*) "Add TiO2 Core (Al2O3 Cloud) ..."
-  call CARMAELEMENT_Create(carma, 3, 2, "TiO2 Core (Al2O3)", RHO_TIO2, I_COREMASS, I_TIO2, rc)
-  if (rc < 0) stop "    *** FAILED ***"
+    write(*,*) "Add"// trim(name)// "..."
 
-  write(*,*) "Add Fe Mantle ..."
-  call CARMAELEMENT_Create(carma, 4, 3, "Fe Mantle", RHO_FE, I_VOLATILE, I_FE, rc)
-  if (rc < 0) stop "    *** FAILED ***"
+    if(trim(type_spec) == "Volatile") then
+      itype = I_VOLATILE
+    else if(trim(type_spec) == "Core Mass") then
+      itype = I_COREMASS
+    else
+      stop "invalid element type"
+    endif
+      call CARMAELEMENT_Create(carma, i, igroup, name, rho, itype, icomposition, rc)
+      if (rc < 0) stop "    *** FAILED ***"
 
-  write(*,*) "Add TiO2 Core (Fe Cloud) ..."
-  call CARMAELEMENT_Create(carma, 5, 3, "TiO2 Core (Fe)", RHO_TIO2, I_COREMASS, I_TIO2, rc)
-  if (rc < 0) stop "    *** FAILED ***"
-
-  write(*,*) "Add Mg2SiO4 Mantle ..."
-  call CARMAELEMENT_Create(carma, 6, 4, "Mg2SiO4 Mantle", RHO_MG2SIO4, I_VOLATILE, I_MG2SIO4, rc)
-  if (rc < 0) stop "    *** FAILED ***"
-
-  write(*,*) "Add TiO2 Core (Mg2SiO4 Cloud) ..."
-  call CARMAELEMENT_Create(carma, 7, 4, "TiO2 Core (Mg2SiO4)", RHO_TIO2, I_COREMASS, I_TIO2, rc)
-  if (rc < 0) stop "    *** FAILED ***"
-
-  write(*,*) "Add Cr Mantle ..."
-  call CARMAELEMENT_Create(carma, 8, 5, "Cr Mantle", RHO_CR, I_VOLATILE, I_CR, rc)
-  if (rc < 0) stop "    *** FAILED ***"
-
-  write(*,*) "Add TiO2 Core (Cr Cloud) ..."
-  call CARMAELEMENT_Create(carma, 9, 5, "TiO2 Core (Cr)", RHO_TIO2, I_COREMASS, I_TIO2, rc)
-  if (rc < 0) stop "    *** FAILED ***"
-
-  write(*,*) "Add MnS Mantle ..."
-  call CARMAELEMENT_Create(carma, 10, 6, "MnS Mantle", RHO_MNS, I_VOLATILE, I_MNS, rc)
-  if (rc < 0) stop "    *** FAILED ***"
-
-  write(*,*) "Add TiO2 Core (MnS Cloud) ..."
-  call CARMAELEMENT_Create(carma, 11, 6, "TiO2 Core (MnS)", RHO_TIO2, I_COREMASS, I_TIO2, rc)
-  if (rc < 0) stop "    *** FAILED ***"
-
-  write(*,*) "Add Na2S Mantle ..."
-  call CARMAELEMENT_Create(carma, 12, 7, "Na2S Mantle", RHO_NA2S, I_VOLATILE, I_NA2S, rc)
-  if (rc < 0) stop "    *** FAILED ***"
-
-  write(*,*) "Add TiO2 Core (Na2S Cloud) ..."
-  call CARMAELEMENT_Create(carma, 13, 7, "TiO2 Core (Na2S)", RHO_TIO2, I_COREMASS, I_TIO2, rc)
-  if (rc < 0) stop "    *** FAILED ***"
-
-  write(*,*) "Add Fe ..."
-  call CARMAELEMENT_Create(carma, 14, 8, "Pure Fe", RHO_FE, I_VOLATILE, I_FE, rc)
-  if (rc < 0) stop "    *** FAILED ***"
-
-  write(*,*) "Add Cr ..."
-  call CARMAELEMENT_Create(carma, 15, 9, "Pure Cr", RHO_CR, I_VOLATILE, I_CR, rc)
-  if (rc < 0) stop "    *** FAILED ***"
-
-  write(*,*) "Add KCl ..."
-  call CARMAELEMENT_Create(carma, 16, 10, "Pure KCl", RHO_KCL, I_VOLATILE, I_KCL, rc)
-  if (rc < 0) stop "    *** FAILED ***"
-
-  write(*,*) "Add ZnS Mantle ..."
-  call CARMAELEMENT_Create(carma, 17, 11, "ZnS Mantle", RHO_ZNS, I_VOLATILE, I_ZNS, rc)
-  if (rc < 0) stop "    *** FAILED ***"
-
-  write(*,*) "Add KCl Core (ZnS Cloud) ..."
-  call CARMAELEMENT_Create(carma, 18, 11, "KCl Core (ZnS)", RHO_KCL, I_COREMASS, I_KCL, rc)
-  if (rc < 0) stop "    *** FAILED ***"
+  enddo
+  close(10)
 
   write(*,*) " "
 
@@ -494,146 +425,51 @@ subroutine test_day()
   write(*,*) "  Add Gase(s) ..."
   write(*,*) " "
 
-  write(*,*) "Add H2O Vapour ..."
-  call CARMAGAS_Create(carma, 1, "Water Vapour", WTMOL_H2O, I_VAPRTN_H2O_MURPHY2005, I_GCOMP_H2O, rc)
-  if (rc < 0) stop "    *** FAILED ***"
+  open(10, file=gases_file)
+  do i=1, NGAS
 
-  write(*,*) "Add TiO2 Vapour ..."
-  call CARMAGAS_Create(carma, 2, "TiO2 Vapour", WTMOL_TIO2, I_VAPRTN_TIO2_HELLING2001, I_GCOMP_TIO2, rc)
-  if (rc < 0) stop "    *** FAILED ***"
+    read(10, *) name, wtmol, iroutine, icomposition, wtmol_dif
 
-  write(*,*) "Add Fe Vapour ..."
-  call CARMAGAS_Create(carma, 3, "Fe Vapour", WTMOL_FE, I_VAPRTN_FE_VISSCHER2010, I_GCOMP_FE, rc)
-  if (rc < 0) stop "    *** FAILED ***"
+    write(*,*) "Add "//trim(name) //" ..."
+    if (wtmol == wtmol_dif) then
+      call CARMAGAS_Create(carma, i, name, wtmol, INT(iroutine), icomposition, rc)
+    else
+      call CARMAGAS_Create(carma, i, name, wtmol, INT(iroutine), icomposition, rc, wtmol_dif=wtmol_dif)
+    endif
+    if (rc < 0) stop "    *** FAILED ***"
 
-  write(*,*) "Add Mg2SiO4 Vapour ..."
-  call CARMAGAS_Create(carma, 4, "Mg2SiO4 Vapour", WTMOL_MG2SIO4, I_VAPRTN_MG2SIO4_VISSCHER2010, I_GCOMP_MG2SIO4, rc, wtmol_dif=WTMOL_MG)
-  if (rc < 0) stop "    *** FAILED ***"
+  enddo
+  close(10)
+  
 
-  write(*,*) "Add Cr Vapour ..."
-  call CARMAGAS_Create(carma, 5, "Cr Vapour", WTMOL_CR, I_VAPRTN_CR_MORLEY2012, I_GCOMP_CR, rc)
-  if (rc < 0) stop "    *** FAILED ***"
-
-  write(*,*) "Add MnS Vapour ..."
-  call CARMAGAS_Create(carma, 6, "MnS Vapour", WTMOL_MNS, I_VAPRTN_MNS_MORLEY2012, I_GCOMP_MNS, rc, wtmol_dif=WTMOL_MN)
-  if (rc < 0) stop "    *** FAILED ***"
-
-  write(*,*) "Add Na2S Vapour ..."
-  call CARMAGAS_Create(carma, 7, "Na2S Vapour", WTMOL_NA2S, I_VAPRTN_NA2S_MORLEY2012, I_GCOMP_NA2S, rc, wtmol_dif=WTMOL_NA)
-  if (rc < 0) stop "    *** FAILED ***"
-
-  write(*,*) "Add ZnS Vapour ..."
-  call CARMAGAS_Create(carma, 8, "ZnS Vapour", WTMOL_ZNS, I_VAPRTN_ZNS_MORLEY2012, I_GCOMP_ZNS, rc, wtmol_dif=WTMOL_ZN)
-  if (rc < 0) stop "    *** FAILED ***"
-
-  write(*,*) "Add KCl Vapour ..."
-  call CARMAGAS_Create(carma, 9, "KCl Vapour", WTMOL_KCL, I_VAPRTN_KCL_MORLEY2012, I_GCOMP_KCL, rc)
-  if (rc < 0) stop "    *** FAILED ***"
-
-  write(*,*) "Add Al2O3 Vapour ..."
-  call CARMAGAS_Create(carma, 10, "Al2O3 Vapour", WTMOL_Al2O3, I_VAPRTN_AL2O3_WAKEFORD2017, I_GCOMP_AL2O3, rc, wtmol_dif=WTMOL_AL)
-  if (rc < 0) stop "    *** FAILED ***"
-
-  write(*,*) " "
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   ! Setup the CARMA processes to exercise growth, nucleation, and coagulation.
 
   write(*,*) "  Add Nucleation ..."
-  call CARMA_AddNucleation(carma, 1, 1, I_HOMGEN, 0._f, rc, igas=2)
-  if (rc < 0) stop "    *** FAILED ***"
-
-  !Al2O3 on TiO2 cos(43.6) = 0.724172 from Gao+2020
-  write(*,*) "  Add Nucleation ..."
-  call CARMA_AddNucleation(carma, 1, 3, I_HETGEN, 0._f, rc, igas=10, ievp2elem=1, mucos = 0.724172_f )
-  if (rc < 0) stop "    *** FAILED ***"
-
- !Fe on TiO2 cos(77.2) = 0.221548 from Gao+2020
-  write(*,*) "  Add Nucleation ..."
-  call CARMA_AddNucleation(carma, 1, 5, I_HETGEN, 0._f, rc, igas=3, ievp2elem=1, mucos = 0.221548_f)
-  if (rc < 0) stop "    *** FAILED ***"
-
-  !Mg2SiO4 on TiO2 cos(0.1) = 0.995 from Gao+2020
-  write(*,*) "  Add Nucleation ..."
-  call CARMA_AddNucleation(carma, 1, 7, I_HETGEN, 0._f, rc, igas=4, ievp2elem=1, mucos = 0.995_f)
-  if (rc < 0) stop "    *** FAILED ***"
-
-  !Cr on TiO2 cos(74.8) = 0.262189 from Gao+2020
-  write(*,*) "  Add Nucleation ..."
-  call CARMA_AddNucleation(carma, 1, 9, I_HETGEN, 0._f, rc, igas=5, ievp2elem=1, mucos = 0.262189_f)
-  if (rc < 0) stop "    *** FAILED ***"
-
-  !MnS on TiO2 cos(77.6) = 0.214735 from Gao+2020
-  write(*,*) "  Add Nucleation ..."
-  call CARMA_AddNucleation(carma, 1, 11, I_HETGEN, 0._f, rc, igas=6, ievp2elem=1, mucos = 0.214735_f)
-  if (rc < 0) stop "    *** FAILED ***"
-
-  !Na2S on TiO2 cos(61) = 0.48481 from Gao+2020
-  write(*,*) "  Add Nucleation ..."
-  call CARMA_AddNucleation(carma, 1, 13, I_HETGEN, 0._f, rc, igas=7, ievp2elem=1, mucos = 0.48481_f)
-  if (rc < 0) stop "    *** FAILED ***"
-
-  write(*,*) "  Add Nucleation ..."
-  call CARMA_AddNucleation(carma, 14, 14, I_HOMGEN, 0._f, rc, igas=3)
-  if (rc < 0) stop "    *** FAILED ***"
-
-  write(*,*) "  Add Nucleation ..."
-  call CARMA_AddNucleation(carma, 15, 15, I_HOMGEN, 0._f, rc, igas=5)
-  if (rc < 0) stop "    *** FAILED ***"
-
-  write(*,*) "  Add Nucleation ..."
-  call CARMA_AddNucleation(carma, 16, 16, I_HOMGEN, 0._f, rc, igas=9)
-  if (rc < 0) stop "    *** FAILED ***"
-
-  !ZnS on KCl cos(81.7) = 0.144356 from Gao+2020
-  write(*,*) "  Add Nucleation ..."
-  call CARMA_AddNucleation(carma, 16, 18, I_HETGEN, 0._f, rc, igas=8, ievp2elem=16, mucos = 0.144356_f)
-  if (rc < 0) stop "    *** FAILED ***"
+  open(10, file=nuc_file)
+  do i = 1, NNUC
+    read(10, *) ifrom, ito, is_het, igas, ievp2elem, mucos 
+    if (is_het == 1) then
+        call CARMA_AddNucleation(carma, ifrom, ito, I_HETGEN, 0._f, rc, igas=igas, ievp2elem=ievp2elem, mucos=mucos )
+    else
+      call CARMA_AddNucleation(carma, ifrom, ito, I_HOMGEN, 0._f, rc, igas=igas)
+    endif
+    if (rc < 0) stop "    *** FAILED ***"
+  enddo
+  close(10)
 
   write(*,*) "  Add Growth ..."
-  call CARMA_AddGrowth(carma, 1, 2, rc)
-  if (rc < 0) stop "    *** FAILED ***"
+  open(10, file=growth_file)
+  do i = 1, NNUC
+    read(10, *) ito, igas
 
-  write(*,*) "  Add Growth ..."
-  call CARMA_AddGrowth(carma, 2, 10, rc)
-  if (rc < 0) stop "    *** FAILED ***"
+    call CARMA_AddGrowth(carma, ito, igas, rc)
+    if (rc < 0) stop "    *** FAILED ***"
 
-  write(*,*) "  Add Growth ..."
-  call CARMA_AddGrowth(carma, 4, 3, rc)
-  if (rc < 0) stop "    *** FAILED ***"
-
-  write(*,*) "  Add Growth ..."
-  call CARMA_AddGrowth(carma, 6, 4, rc)
-  if (rc < 0) stop "    *** FAILED ***"
-
-  write(*,*) "  Add Growth ..."
-  call CARMA_AddGrowth(carma, 8, 5, rc)
-  if (rc < 0) stop "    *** FAILED ***"
-
-  write(*,*) "  Add Growth ..."
-  call CARMA_AddGrowth(carma, 10, 6, rc)
-  if (rc < 0) stop "    *** FAILED ***"
-
-  write(*,*) "  Add Growth ..."
-  call CARMA_AddGrowth(carma, 12, 7, rc)
-  if (rc < 0) stop "    *** FAILED ***"
-
-  write(*,*) "  Add Growth ..."
-  call CARMA_AddGrowth(carma, 14, 3, rc)
-  if (rc < 0) stop "    *** FAILED ***"
-
-  write(*,*) "  Add Growth ..."
-  call CARMA_AddGrowth(carma, 15, 5, rc)
-  if (rc < 0) stop "    *** FAILED ***"
-
-  write(*,*) "  Add Growth ..."
-  call CARMA_AddGrowth(carma, 16, 9, rc)
-  if (rc < 0) stop "    *** FAILED ***"
-
-  write(*,*) "  Add Growth ..."
-  call CARMA_AddGrowth(carma, 17, 8, rc)
-  if (rc < 0) stop "    *** FAILED ***"
+  enddo
+  close(10)
 
  ! write(*,*) "  Add Coagulation ..."
  ! call CARMA_AddCoagulation(carma, 2, 2, 2, I_COLLEC_FUCHS, rc)
@@ -795,39 +631,8 @@ subroutine test_day()
 
   ! Define constant wind speeds (temporally varying winds defined within step loop below)
 
-  dz_test(:) = abs(zl(2:NZP1) - zl(1:NZ)) * 100._f
   rho_atm_cgs = p(:) / (RGAS/wtmol_air(:) * t(:))
 
-  !met = 0._f
-
-  !do i = 1, NZ
-
-    !winds(i) = 0._f  				   ! No wind
-
-    !winds(i) = 8.0e-5_f / rho_atm_cgs(i)  	   ! Upward Hadley circulation (no cut off)
-
-    !if (i .lt. 105) then                         ! Upward Hadley circulation (gaussian cut off at 70 km)
-    !  winds(i) = 8.0e-5_f / rho_atm_cgs(i)
-    !else
-    !  winds(i) = (8.0e-5_f / rho_atm_cgs(i)) * exp( - (((zc(i) - zc(105)) / 5000._f) ** 2) / 2 )
-    !end if
-
-    !winds(i) = -8.0e-5_f / rho_atm_cgs(i) 	   ! Downward Hadley circulation (no cut off)
-
-    !if (i .lt. NZ/2) then                          ! Upward gust (linear cut off at 75 km)
-    !  winds(i) = 8.0e-3_f / rho_atm_cgs(i)
-    !else
-    !  winds(i) = (8.0e-3_f - (i - NZ/2)*3.2e-4_f) / rho_atm_cgs(i)
-    !  if (winds(i) .lt. 0._f) winds(i) = 0._f
-    !end if
-
-    !if (i .lt. NZ/2) then                          ! Upward gust (gaussian cut off at 75 km)
-    !  winds(i) = 8.0e-3_f / rho_atm_cgs(i)
-    !else
-    !  winds(i) = (8.0e-3_f / rho_atm_cgs(i)) *  exp( - (((zc - zc(NZ/2)) / 4000._f) ** 2) / 2 )
-    !end if
-
-  !end do
 
 
 

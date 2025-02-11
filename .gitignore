@@ -8,4 +8,10 @@ hj_*
 run/carma/*.txt
 run/carma/*.dat
 source/base/*.mod
+*.mod
+*.pyc
+*/inputs/*
+/run/carma/*
+bd*
 
+*.slurm

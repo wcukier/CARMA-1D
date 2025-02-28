@@ -251,16 +251,19 @@ class Carma:
         nml.write(path+"/inputs/input.nml", force=True)
         
         with open(path+"/inputs/groups.txt", "w+") as f:
+            f.write("name\trmin\n")
             for key in self.groups.keys():
                 name = '"'+key + '"'
                 f.write(f'{name:24s}{self.groups[key].rmin:.15e}\n')
         
         with open(path+"/inputs/gasses.txt", "w+") as f:
+            f.write("name\twtmol\tivaprtn\ticomp\twtmol_dif\n")
             for key in self.gasses.keys():
                 name = '"'+key + ' Vapor"'
                 f.write(f'{name:24s}{self.gasses[key].wtmol:<.6e}\t{self.gasses[key].ivaprtn:2d}\t{self.gasses[key].icomp:2d}\t{self.gasses[key].wtmol_dif:3.4f}\n')
         
         with open(path+"/inputs/elements.txt", "w+") as f:
+            f.write("igroup\tname\trho\tprocess\tigas\n")
             for key in self.elems.keys():
                 name = '"'+key + '"'
                 proc = '"'+self.elems[key].proc + '"'
@@ -269,6 +272,7 @@ class Carma:
         
         
         with open(path+"/inputs/nucleation.txt", "w+") as f:
+            f.write("ele_from\tele_to\tis_het\tigas\tevap_to\tmucos\n")
             for nuc in self.nucs:
                 igas = nuc.gas.igas
                 if nuc.is_het:
@@ -282,18 +286,25 @@ class Carma:
                     f.write(f'{ele_from:3d}\t{ele_to:3d}\t0\t{igas:3d}\t{0:3d}\t{0:1.8f}\n')
         
         with open(path+"/inputs/growth.txt", "w+") as f:
+            f.write("ielem\tigas\n")
             for g in self.growth:
                 f.write(f"{g.elem.ielem}\t {g.gas.igas}\n")
 
         with open(path+"/inputs/centers.txt", "w+") as f:
+            f.write("z_centers\tP_centers\tT_centers\n")
             for i in range(self.NZ):
                 f.write(f"{self.z_centers[i]/100}\t{self.P_centers[i]/10}\t{self.T_centers[i]}\n")
         
         with open(path+"/inputs/levels.txt", "w+") as f:
+            f.write("z_levels\tP_levels\tkzz_levels\n")
             for i in range(self.NZ+1):
                 f.write(f"{self.z_levels[i]/100}\t{self.P_levels[i]/10}\t{self.kzz_levels[i]}\n")
         
         with open(path+"/inputs/gas_input.txt", "w+") as f:
+            for key in self.gasses.keys():
+                f.write(key+"\t")
+            f.write("\n")
+            
             for key in self.gasses.keys():
                 g = self.gasses[key]
                 if type(g) == type(1):

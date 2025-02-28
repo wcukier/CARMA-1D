@@ -231,7 +231,7 @@ subroutine test_day()
   namelist / input_params / NZ, NELEM, NGROUP, NGAS, NBIN, NSOLUTE, NWAVE, ilongitude, irestart, idiag, iskip, nstep, dtime, NGROWTH, NNUC
 
 
-  real(kind=f), allocatable ::tempr(:), pre(:), prel(:), alt(:), altl(:), wtmol_air(:), grav(:), ekz(:), ekzl(:)
+  real(kind=f), allocatable ::tempr(:), pre(:), prel(:), alt(:), altl(:), wtmol_air(:), grav(:), ekz(:), ekzl(:), wtmol_gas(:)
   real(kind=f), allocatable ::temp_equator(:, :), p_equator_center(:), p_equator_level(:), velocity(:), longitudes(:)
 
 
@@ -246,49 +246,33 @@ subroutine test_day()
 
   NZP1 = NZ + 1
 
-  allocate(tempr(NZ), pre(NZ), prel(NZP1), alt(NZ), altl(NZP1), wtmol_air(NZ), grav(NZ), ekz(NZP1), ekzl(NZP1))
+  allocate(tempr(NZ), pre(NZ), prel(NZP1), alt(NZ), altl(NZP1), wtmol_air(NZ), grav(NZ), ekz(NZP1), ekzl(NZP1), wtmol_gas(NGAS))
   allocate(temp_equator(NZ, ilongitude), p_equator_center(NZ), p_equator_level(NZP1), velocity(ilongitude), longitudes(ilongitude))
 
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-  open(12, file = centers_file)!PARAM
+  open(12, file = centers_file)
+  read(12, *)
+  do i = 1, NZ
+ 	  read(12,*) alt(i), pre(i), tempr(i)
+  end do
 
- do i = 1, NZ
- 	read(12,*) alt(i), pre(i), tempr(i)
- end do
+  close(12)
 
- close(12)
+  open(13, file = levels_file) 
+  read(13, *)
 
- open(13, file = levels_file) !PARAM
+  do i=1, NZP1
+    read(13,*) altl(i), prel(i), ekz(i)
+  end do
 
- do i=1, NZP1
-   read(13,*) altl(i), prel(i), ekz(i)
- end do
+  close(13)
 
- close(13)
 
-!  open(14, file = 'w39b_kzz_big.txt')
-
-!  do i=1, NZP1
-!    read(14,*) ekzl(i)
-!  end do
-
-!  close(14)
-
-! Taken from 2D Carma 1100 K
-! do i = 1, NZP1
-!  	if (pl(i) < 1.e5_f) then
-! 		ekz(i) = 5.e7_f*(pl(i)*1.e-5_f)**(-0.45)
-!  	else
-!  		ekz(i) = 5.e7_f
-!  	end if
-! end do
-
-  wtmol_air(:) =wtmol_air_set !PARAM
-  grav(:) = grav_set !cm/s^2 PARAM
+  wtmol_air(:) =wtmol_air_set 
+  grav(:) = grav_set 
   met = 1._f
-  tio2_in = 5.913558445076336e-09_f
 
   t0_in = MAXVAL(tempr)
 
@@ -364,6 +348,7 @@ subroutine test_day()
   write(*,*) " "
 
   open(10, file = groups_file)
+  read(10, *)
   do i = 1, NGROUP
     read(10, *) name, rmin
 
@@ -386,11 +371,12 @@ subroutine test_day()
   write(*,*) " "
 
   open(10, file=elements_file)
+  read(10, *)
   do i=1, NELEM
     read(10, *) igroup, name, rho, type_spec, icomposition
 
 
-    write(*,*) "Add"// trim(name)// "..."
+    write(*,*) "Add "// trim(name)// "..."
 
     if(trim(type_spec) == "Volatile") then
       itype = I_VOLATILE
@@ -422,10 +408,11 @@ subroutine test_day()
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   ! Define the gases
-  write(*,*) "  Add Gase(s) ..."
+  write(*,*) "  Add Gas(es) ..."
   write(*,*) " "
 
   open(10, file=gases_file)
+  read(10, *)
   do i=1, NGAS
 
     read(10, *) name, wtmol, iroutine, icomposition, wtmol_dif
@@ -438,6 +425,7 @@ subroutine test_day()
     endif
     if (rc < 0) stop "    *** FAILED ***"
 
+    wtmol_gas(i) = wtmol_dif
   enddo
   close(10)
   
@@ -449,6 +437,7 @@ subroutine test_day()
 
   write(*,*) "  Add Nucleation ..."
   open(10, file=nuc_file)
+  read(10, *)
   do i = 1, NNUC
     read(10, *) ifrom, ito, is_het, igas, ievp2elem, mucos 
     if (is_het == 1) then
@@ -462,6 +451,7 @@ subroutine test_day()
 
   write(*,*) "  Add Growth ..."
   open(10, file=growth_file)
+  read(10, *)
   do i = 1, NNUC
     read(10, *) ito, igas
 
@@ -651,34 +641,37 @@ subroutine test_day()
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
+  do ielem = 1, NELEM-1
+    call CARMAELEMENT_Get(carma, ielem, rc, igroup=igroup, name=name)
+    if (rc < 0) stop "    *** FAILED CARMA_ELEMENT_Get ***"
+    write(lun,'(A35)', advance="no") name
+  end do
+
+  call CARMAELEMENT_Get(carma, NELEM, rc, igroup=igroup, name=name)
+  if (rc < 0) stop "    *** FAILED CARMA_ELEMENT_Get ***"
+  write(lun,'(A35)') name
+
+
   write(lun,*) 0
   write(lunf,*) 0
   do j = 1, NBIN
    do i = 1, NZ
-    write(lun,'(i3,i4,29e11.3,f8.0)') &
-     j, i, &
-     real(mmr(i,1,j) * rho_atm_cgs(i) / rmass(j,1)), &
-     real(mmr(i,2,j) * rho_atm_cgs(i) / rmass(j,2)), &
-     real(mmr(i,4,j) * rho_atm_cgs(i) / rmass(j,3)), &
-     real(mmr(i,6,j) * rho_atm_cgs(i) / rmass(j,4)), &
-     real(mmr(i,8,j) * rho_atm_cgs(i) / rmass(j,5)), &
-     real(mmr(i,10,j) * rho_atm_cgs(i) / rmass(j,6)), &
-     real(mmr(i,12,j) * rho_atm_cgs(i) / rmass(j,7)), &
-     real(mmr(i,14,j) * rho_atm_cgs(i) / rmass(j,8)), &
-     real(mmr(i,15,j) * rho_atm_cgs(i) / rmass(j,9)), &
-     real(mmr(i,16,j) * rho_atm_cgs(i) / rmass(j,10)), &
-     real(mmr(i,17,j) * rho_atm_cgs(i) / rmass(j,11)), &
-     real(mmr_gas(i,2) * 1.0e6_f / (WTMOL_TIO2 / wtmol_air(i))), 0._f, &
-     real(mmr_gas(i,3) * 1.0e6_f / (WTMOL_FE / wtmol_air(i))), 0._f, &
-     real(mmr_gas(i,4) * 1.0e6_f / (WTMOL_MG / wtmol_air(i))), 0._f, &
-     real(mmr_gas(i,5) * 1.0e6_f / (WTMOL_CR / wtmol_air(i))), 0._f, &
-     real(mmr_gas(i,6) * 1.0e6_f / (WTMOL_MN / wtmol_air(i))), 0._f, &
-     real(mmr_gas(i,7) * 1.0e6_f / (WTMOL_NA / wtmol_air(i))), 0._f, &
-     real(mmr_gas(i,8) * 1.0e6_f / (WTMOL_ZN / wtmol_air(i))), 0._f, &
-     real(mmr_gas(i,9) * 1.0e6_f / (WTMOL_KCL / wtmol_air(i))), 0._f, &
-     real(mmr_gas(i,10) * 1.0e6_f / (WTMOL_AL / wtmol_air(i))), 0._f, 0
-   end do
-  end do
+    write(lun, '(i3,i4)', advance="no") j, i
+
+    do ielem = 1, NELEM
+      write(lun, '(e11.3)', advance="no") real(mmr(i,ielem,j) * rho_atm_cgs(i) / rmass(j,ielem))
+    end do
+
+    do igas = 1, NGAS
+      write(lun, '(2e11.3)', advance="no") &
+        real(mmr_gas(i,igas) * 1.0e6_f / (wtmol_gas(igas) / wtmol_air(i))), &
+        0._f
+    end do
+
+    write(lun, '(f8.0)') 0
+      
+    end do
+  enddo
 
   binmultiple = int(NBIN / 10._f)
 
@@ -822,44 +815,21 @@ subroutine test_day()
 
      if (istep .eq. 1) then !PARAM
       open(unit=gas_in, file=gas_input_file, status='old')
+      read(gas_in, *)
+
       do i = 1, NZ
         READ(gas_in, *) mmr_gas(i, :)
-        mmr_gas(i,1) = min(mmr_gas(i,1) * (WTMOL_H2O/ wtmol_air(1)) * 10._f**met,svpliq(1,2) * (WTMOL_H2O / wtmol_air(1)))
-        mmr_gas(i,2) = min(mmr_gas(i,2) * (WTMOL_TIO2 / wtmol_air(1)) * 10._f**met,svpliq(1,2) * (WTMOL_TIO2 / wtmol_air(1)))
-        mmr_gas(i,3) = min(mmr_gas(i,3) * (WTMOL_FE / wtmol_air(1)) * 10._f**met,svpliq(1,3) * (WTMOL_FE / wtmol_air(1)))
-        mmr_gas(i,4) = min(mmr_gas(i,4) * (WTMOL_MG / wtmol_air(1)) * 10._f**met,svpliq(1,4) * (WTMOL_MG / wtmol_air(1)))
-        mmr_gas(i,5) = min(mmr_gas(i,5) * (WTMOL_CR / wtmol_air(1)) * 10._f**met,svpliq(1,5) * (WTMOL_CR / wtmol_air(1)))
-        mmr_gas(i,6) = min(mmr_gas(i,6)* (WTMOL_MN / wtmol_air(1)) * 10._f**met,svpliq(1,6) * (WTMOL_MN / wtmol_air(1)))
-        mmr_gas(i,7) = min(mmr_gas(i,7) * (WTMOL_NA / wtmol_air(1)) * 10._f**met,svpliq(1,7) * (WTMOL_NA / wtmol_air(1)))
-        mmr_gas(i,8) = min(mmr_gas(i,8) * (WTMOL_ZN / wtmol_air(1)) * 10._f**met,svpliq(1,8) * (WTMOL_ZN / wtmol_air(1)))
-        mmr_gas(i,9) = min(mmr_gas(i,9) * (WTMOL_KCL / wtmol_air(1)) * 10._f**met,svpliq(1,9) * (WTMOL_KCL / wtmol_air(1)))
-        mmr_gas(i,10) = min(mmr_gas(i,10) * (WTMOL_AL / wtmol_air(1)) * 10._f**met,svpliq(1,10) * (WTMOL_AL / wtmol_air(1)))
+        do j = 1, NGAS
+          mmr_gas(i,j) = min(mmr_gas(i,j) * (wtmol_gas(j)/ wtmol_air(1)) * 10._f**met,svpliq(i,j) * (wtmol_gas(j) / wtmol_air(1)))
+        end do
       end do
+
       close(unit=gas_in)
+
       do i=1, NGAS
         gcbot(i) = mmr_gas(1, i) + 1e-50_f
       end do
 
-      !  mmr_gas(1,2) = min(1.36e-7_f * (WTMOL_TIO2 / wtmol_air(1)) * 10._f**met,svpliq(1,2) * (WTMOL_TIO2 / wtmol_air(1)))
-      ! !  mmr_gas(1,2) = min(tio2_in * (WTMOL_TIO2 / wtmol_air(1)),svpliq(1,2) * (WTMOL_TIO2 / wtmol_air(1)))
-      !  mmr_gas(1,3) = min(2.766e-5_f * (WTMOL_FE / wtmol_air(1)) * 10._f**met,svpliq(1,3) * (WTMOL_FE / wtmol_air(1)))
-      !  mmr_gas(1,4) = min(2.766e-5_f * (WTMOL_MG / wtmol_air(1)) * 10._f**met,svpliq(1,4) * (WTMOL_MG / wtmol_air(1)))
-      !  mmr_gas(1,5) = min(2.766e-7 * (WTMOL_CR / wtmol_air(1)) * 10._f**met,svpliq(1,5) * (WTMOL_CR / wtmol_air(1)))
-      !  mmr_gas(1,6) = min(1.0e-6_f * (WTMOL_MN / wtmol_air(1)) * 10._f**met,svpliq(1,6) * (WTMOL_MN / wtmol_air(1)))
-      !  mmr_gas(1,7) = min(1.0e-5_f * (WTMOL_NA / wtmol_air(1)) * 10._f**met,svpliq(1,7) * (WTMOL_NA / wtmol_air(1)))
-      !  mmr_gas(1,8) = min(7.65e-7_f * (WTMOL_ZN / wtmol_air(1)) * 10._f**met,svpliq(1,8) * (WTMOL_ZN / wtmol_air(1)))
-      !  mmr_gas(1,9) = min(5.6e-6_f * (WTMOL_KCL / wtmol_air(1)) * 10._f**met,svpliq(1,9) * (WTMOL_KCL / wtmol_air(1)))
-      !  mmr_gas(1,10) = min(4.937e-6_f * (WTMOL_AL / wtmol_air(1)) * 10._f**met,svpliq(1,10) * (WTMOL_AL / wtmol_air(1)))
-      !  gcbot(2) = min(1.36e-7_f * (WTMOL_TIO2 / wtmol_air(1)) * 10._f**met,svpliq(1,2) * (WTMOL_TIO2 / wtmol_air(1)))
-      ! !  gcbot(2) = min(tio2_in * (WTMOL_TIO2 / wtmol_air(1)),svpliq(1,2) * (WTMOL_TIO2 / wtmol_air(1)))
-      !  gcbot(3) = min(2.766e-5_f  * (WTMOL_FE / wtmol_air(1)) * 10._f**met,svpliq(1,3) * (WTMOL_FE / wtmol_air(1)))
-      !  gcbot(4) = min(2.766e-5_f  * (WTMOL_MG / wtmol_air(1)) * 10._f**met,svpliq(1,4) * (WTMOL_MG / wtmol_air(1)))
-      !  gcbot(5) = min(2.766e-7_f * (WTMOL_CR / wtmol_air(1)) * 10._f**met,svpliq(1,5) * (WTMOL_CR / wtmol_air(1)))
-      !  gcbot(6) = min(1.0e-6_f * (WTMOL_MN / wtmol_air(1)) * 10._f**met,svpliq(1,6) * (WTMOL_MN / wtmol_air(1)))
-      !  gcbot(7) = min(1.0e-5_f * (WTMOL_NA / wtmol_air(1)) * 10._f**met,svpliq(1,7) * (WTMOL_NA / wtmol_air(1)))
-      !  gcbot(8) = min(7.65e-7_f * (WTMOL_ZN / wtmol_air(1)) * 10._f**met,svpliq(1,8) * (WTMOL_ZN / wtmol_air(1)))
-      !  gcbot(9) = min(5.6e-6_f * (WTMOL_KCL / wtmol_air(1)) * 10._f**met,svpliq(1,9) * (WTMOL_KCL / wtmol_air(1)))
-      !  gcbot(10) = min(4.937e-6_f * (WTMOL_AL / wtmol_air(1)) * 10._f**met,svpliq(1,10) * (WTMOL_AL / wtmol_air(1)))
      endif
 
 
@@ -875,93 +845,28 @@ subroutine test_day()
 
       do j = 1, NBIN
         do i = 1, NZ
-          write(lun,'(i3,i4,29e11.3,f8.0)') &
-          j, i, &
-          real(numden(i,1,j)), &
-          real(numden(i,2,j)), &
-          real(numden(i,4,j)), &
-          real(numden(i,6,j)), &
-          real(numden(i,8,j)), &
-          real(numden(i,10,j)), &
-          real(numden(i,12,j)), &
-          real(numden(i,14,j)), &
-          real(numden(i,15,j)), &
-          real(numden(i,16,j)), &
-          real(numden(i,17,j)), &
-          real(mmr_gas(i,2) * 1.0e6_f / (WTMOL_TIO2 / wtmol_air(i))), &
-          real(svpliq(i,2) * 1.0e6_f), &
-          real(mmr_gas(i,3) * 1.0e6_f / (WTMOL_FE / wtmol_air(i))), &
-          real(svpliq(i,3) * 1.0e6_f), &
-          real(mmr_gas(i,4) * 1.0e6_f / (WTMOL_MG / wtmol_air(i))), &
-          real(svpliq(i,4) * 1.0e6_f), &
-          real(mmr_gas(i,5) * 1.0e6_f / (WTMOL_CR / wtmol_air(i))), &
-          real(svpliq(i,5) * 1.0e6_f), &
-          real(mmr_gas(i,6) * 1.0e6_f / (WTMOL_MN / wtmol_air(i))), &
-          real(svpliq(i,6) * 1.0e6_f), &
-          real(mmr_gas(i,7) * 1.0e6_f / (WTMOL_NA / wtmol_air(i))), &
-          real(svpliq(i,7) * 1.0e6_f), &
-          real(mmr_gas(i,8) * 1.0e6_f / (WTMOL_ZN / wtmol_air(i))), &
-          real(svpliq(i,8) * 1.0e6_f), &
-          real(mmr_gas(i,9) * 1.0e6_f / (WTMOL_KCL / wtmol_air(i))), &
-          real(svpliq(i,9) * 1.0e6_f), &
-          real(mmr_gas(i,10) * 1.0e6_f / (WTMOL_AL / wtmol_air(i))), &
-          real(svpliq(i,10) * 1.0e6_f), &
-          zsubsteps(i)
-          write(lunp,'(i3,i4,29e11.3,f8.0)') &
-          j, i, &
-          real(numden(i,1,j)), &
-          real(numden(i,2,j)), &
-          real(numden(i,4,j)), &
-          real(numden(i,6,j)), &
-          real(numden(i,8,j)), &
-          real(numden(i,10,j)), &
-          real(numden(i,12,j)), &
-          real(numden(i,14,j)), &
-          real(numden(i,15,j)), &
-          real(numden(i,16,j)), &
-          real(numden(i,17,j)), &
-          real(mmr_gas(i,2) * 1.0e6_f / (WTMOL_TIO2 / wtmol_air(i))), &
-          real(svpliq(i,2) * 1.0e6_f), &
-          real(mmr_gas(i,3) * 1.0e6_f / (WTMOL_FE / wtmol_air(i))), &
-          real(svpliq(i,3) * 1.0e6_f), &
-          real(mmr_gas(i,4) * 1.0e6_f / (WTMOL_MG / wtmol_air(i))), &
-          real(svpliq(i,4) * 1.0e6_f), &
-          real(mmr_gas(i,5) * 1.0e6_f / (WTMOL_CR / wtmol_air(i))), &
-          real(svpliq(i,5) * 1.0e6_f), &
-          real(mmr_gas(i,6) * 1.0e6_f / (WTMOL_MN / wtmol_air(i))), &
-          real(svpliq(i,6) * 1.0e6_f), &
-          real(mmr_gas(i,7) * 1.0e6_f / (WTMOL_NA / wtmol_air(i))), &
-          real(svpliq(i,7) * 1.0e6_f), &
-          real(mmr_gas(i,8) * 1.0e6_f / (WTMOL_ZN / wtmol_air(i))), &
-          real(svpliq(i,8) * 1.0e6_f), &
-          real(mmr_gas(i,9) * 1.0e6_f / (WTMOL_KCL / wtmol_air(i))), &
-          real(svpliq(i,9) * 1.0e6_f), &
-          real(mmr_gas(i,10) * 1.0e6_f / (WTMOL_AL / wtmol_air(i))), &
-          real(svpliq(i,10) * 1.0e6_f), &
-          zsubsteps(i)
-!          write(lunrates,'(i3,i4,6e11.3)') &
-!          j, i, real(rhompe(i,j,1) * rmass(j,1)), &
-!          real(growpe(i,j,1) * rmass(j,1)), &
-!          real(evappe(i,j,1) * rmass(j,1)), &
-!          real(growlg(i,j,1) * rmass(j,1)), &
-!          real(evaplg(i,j,1) * rmass(j,1)), &
-!          real(gasprod(i,2))
-!          write(lunratesp,'(i3,i4,6e11.3)') &
-!          j, i, real(rhompe(i,j,1) * rmass(j,1)), &
-!          real(growpe(i,j,1) * rmass(j,1)), &
-!          real(evappe(i,j,1) * rmass(j,1)), &
-!          real(growlg(i,j,1) * rmass(j,1)), &
-!          real(evaplg(i,j,1) * rmass(j,1)), &
-!          real(gasprod(i,2))
+
+          write(lun, '(i3,i4)', advance="no") j, i
+          write(lunp, '(i3,i4)', advance="no") j, i
+
+          do ielem = 1, NELEM
+            write(lun, '(e11.3)', advance="no") real(numden(i, ielem, j))
+            write(lunp, '(e11.3)', advance="no") real(numden(i, ielem, j))
+          end do
+
+          do igas = 1, NGAS
+            write(lun, '(2e11.3)', advance="no") &
+            real(mmr_gas(i,igas) * 1.0e6_f / (wtmol_gas(igas) / wtmol_air(i))), &
+            real(svpliq(i,igas) * 1.0e6_f)
+            write(lunp, '(2e11.3)', advance="no") &
+            real(mmr_gas(i,igas) * 1.0e6_f / (wtmol_gas(igas) / wtmol_air(i))), &
+            real(svpliq(i,igas) * 1.0e6_f)
+          end do
+
+          write(lun, '(f8.0)') zsubsteps(i)
+          write(lunp, '(f8.0)') zsubsteps(i)
+
         end do
-!        do i = 1, NZP1
-!          write(lunf,'(i3,i4,3e11.3)') &
-!          j, i, real(gflux(i,1)), real(gflux(i,2)), &
-!          real(pflux(i,j,1)*rmass(j,1))
-!          write(lunfp,'(i3,i4,3e11.3)') &
-!          j, i, real(gflux(i,1)), real(gflux(i,2)), &
-!          real(pflux(i,j,1)*rmass(j,1))
-!        end do
       end do
 
     !endif

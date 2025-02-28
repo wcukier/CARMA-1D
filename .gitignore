@@ -15,3 +15,6 @@ source/base/*.mod
 bd*
 
 *.slurm
+inputs/*
+outputs/*
+*.zip

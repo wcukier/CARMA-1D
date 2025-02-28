@@ -5,6 +5,7 @@ import f90nml
 import numpy as np
 import subprocess
 import warnings
+import shlex
 
 class Carma:
     def __init__(self, name):
@@ -127,7 +128,7 @@ class Carma:
             if len(centers) != self.NZ:
                 raise ValueError(f"centers must be {self.NZ} long to be compatible with other input.\nYour data was {len(centers)} long.")
             if len(levels) != self.NZ + 1:
-                raise ValueError(f"centers must be {self.NZ+1} long to be compatible with other input.\nYour data was {len(levels)} long.")
+                raise ValueError(f"levels must be {self.NZ+1} long to be compatible with other input.\nYour data was {len(levels)} long.")
         else:
             if len(levels) != len(centers) + 1:
                 raise ValueError(f"levels must be one longer than centers.  Your centers was {len(centers)} and your levels was {len(levels)}")
@@ -207,10 +208,12 @@ class Carma:
         os.makedirs(path+"/inputs", exist_ok=True)
         shutil.copy("carmapy/diamondback_test.exe", path)
         
+        path_end = path.split("/")[-1]
+        
         nml = {
             "io_files": {
-                "filename": self.name,
-                "filename_restart": self.name+"_restart",
+                "filename": path_end,
+                "filename_restart": path_end+"_restart",
                 "fileprefix": "bd",
                 "gas_input_file": "inputs/gas_input.txt",
                 "centers_file": "inputs/centers.txt",
@@ -227,7 +230,7 @@ class Carma:
                 "rplanet":  self.r_planet
                 },
             "input_params": {
-                "NZ": self.NZ-1,
+                "NZ": self.NZ,
                 "NELEM": len(self.elems),
                 "NGROUP": len(self.groups),
                 "NGAS": len(self.gasses),
@@ -287,15 +290,19 @@ class Carma:
                 f.write(f"{self.z_centers[i]/100}\t{self.P_centers[i]/10}\t{self.T_centers[i]}\n")
         
         with open(path+"/inputs/levels.txt", "w+") as f:
-            for i in range(self.NZ):
+            for i in range(self.NZ+1):
                 f.write(f"{self.z_levels[i]/100}\t{self.P_levels[i]/10}\t{self.kzz_levels[i]}\n")
         
         with open(path+"/inputs/gas_input.txt", "w+") as f:
             for key in self.gasses.keys():
                 g = self.gasses[key]
-                if g.nmr < 0:
-                    raise AttributeError(f"The nmr for {g.name} was not set.")
-                f.write(f"{g.nmr:10e}\t")
+                if type(g) == type(1):
+                    if g.nmr < 0:
+                        raise AttributeError(f"The nmr for {g.name} was not set.")
+                if len(np.shape(g.nmr)) > 0:
+                    f.write(f"{g.nmr[0]:10e}\t")
+                else:
+                    f.write(f"{g.nmr:10e}\t")
             f.write("\n")
             for i in range(1, self.NZ):
                 for key in self.gasses.keys():
@@ -303,7 +310,7 @@ class Carma:
                     if len(np.shape(g.nmr)) > 0:
                         if len(g.nmr) != self.NZ:
                             raise ValueError(f"The array for nmr of {g.name} is {len(g.nmr)}.  It should be {self.NZ}.")
-                        f.write(f"{g.nmr:10e}\t")
+                        f.write(f"{g.nmr[i]:10e}\t")
                     else:
                         f.write(f"{0.:10e}\t")
                 f.write("\n")
@@ -381,6 +388,75 @@ class Group:
         elem = Element(name, ielem, group, core_elem.rho, "Core Mass", core_elem.igas)
         return elem
 
+def load_carma(path, restart=1):
+    carma = Carma(path)
+    carma.restart = restart
+    
+    nml = f90nml.read(f"{path}/inputs/input.nml")
+    carma.NZ = nml["input_params"]["NZ"] 
+    carma.output_gap = nml["input_params"]["iskip"]
+    carma.n_tstep  = nml["input_params"]["nstep"]
+    carma.dt = nml["input_params"]["dtime"]
+    
+    carma.wt_mol = nml["physical_params"]["wtmol_air_set"]
+    carma.surface_grav = nml["physical_params"]["grav_set"]
+    carma.r_planet = nml["physical_params"]["rplanet"]
+    
+    with open(path+"/inputs/groups.txt", "r") as f:
+        for line in f:
+            name, rmin = shlex.split(line[:-1])
+            carma.groups[name] = Group(len(carma.groups)+1, name, float(rmin))
+        
+    with open(path+"/inputs/gasses.txt", "r") as f:
+        for line in f:
+            name, wtmol, ivaprtn, icomp, wtmol_dif = shlex.split(line[:-1])
+            name= name[:-len(' Vapor')]
+            carma.gasses[name] = Gas(name, len(carma.gasses)+1, wtmol=float(wtmol), ivaprtn=int(ivaprtn), wtmol_dif=float(wtmol_dif))
+            
+    
+    with open(path+"/inputs/elements.txt", "r") as f:
+        for line in f:
+            igroup, name, rho, proc, igas = shlex.split(line[:-1])
+            group = carma.groups[list(carma.groups.keys())[int(igroup)-1]]
+            carma.elems[name] = Element(name, len(carma.elems)+1, group, float(rho), proc, int(igas))
+            if "Mantle" in name:
+                group.mantle = carma.elems[name]
+            else:
+                group.core = carma.elems[name]
+                
+    with open(path+"/inputs/nucleation.txt") as f:
+        for line in f:
+            ele_from, ele_to, _, igas, _, mucos = shlex.split(line[:-1])
+            if ele_to == ele_from:
+                is_het = False
+            else:
+                is_het = True
+            group_from = carma.elems[list(carma.elems.keys())[int(ele_from)-1]].group
+            group_to = carma.elems[list(carma.elems.keys())[int(ele_to)-1]].group
+            gas = carma.gasses[list(carma.gasses.keys())[int(igas)-1]]
+            carma.nucs.append(Nuc(group_from, group_to, is_het, gas, float(mucos)))
+            
+    with open(path+"/inputs/growth.txt") as f:
+        for line in f:
+            ielem, igas = shlex.split(line[:-1])
+            elem = carma.elems[list(carma.elems.keys())[int(ielem)-1]]
+            gas = carma.gasses[list(carma.gasses.keys())[int(igas)-1]]
+            carma.growth.append(Growth(elem, gas))
+            
+    centers = np.genfromtxt(path+"/inputs/centers.txt")
+    levels = np.genfromtxt(path+"/inputs/levels.txt")
+    
+    carma.add_z(centers[:,0]*100, levels[:,0]*100)
+    carma.add_P(centers[:, 1]*10, levels[:,1]*10)
+    carma.add_T(centers[:, 2])
+    carma.add_kzz(levels[:, 2])
+        
+    gas_input = np.genfromtxt(path+"/inputs/gas_input.txt")
+    for i, key in enumerate(carma.gasses.keys()):
+        carma.gasses[key].nmr = gas_input[:, i]
+        
+    return carma
+
 def default_carma(name):
     carma = Carma(name)
     carma.add_gas("H2O")
@@ -410,3 +486,4 @@ def default_carma(name):
     carma.add_hom_group("KCl", 1e-8)
     carma.add_het_group("ZnS", "KCl", 1e-8 * 2**(1/3))
     return carma
+

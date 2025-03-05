@@ -33,8 +33,10 @@ subroutine test_day()
   integer    :: NSOLUTE   
   integer   :: NGAS        
   integer    :: NWAVE  
-  integer    :: ilongitude 
-  integer   :: NGROWTH, NNUC
+  integer    :: NLONGITUDE 
+  integer   :: NGROWTH, NNUC, NCOAG
+  integer   :: IS_2D
+  integer   :: igridv
 
   real(kind=f)   :: dtime 
   real(kind=f), parameter   :: deltax = 100._f
@@ -42,6 +44,7 @@ subroutine test_day()
   real(kind=f), parameter   :: deltaz = 200._f
   real(kind=f), parameter   :: zmin   = 0._f
   real(kind=f)   :: rplanet 
+  real(kind=f)   :: velocity_avg 
 
  ! integer, parameter    :: irestart     = 1  ! =1 to restart
   integer    :: irestart    ! =1 to restart
@@ -198,11 +201,13 @@ subroutine test_day()
   character(len=100)  :: gas_input_file
   character(len=100)  :: centers_file
   character(len=100)  :: levels_file
+  character(len=100)  :: temps_file
   character(len=100)  :: groups_file
   character(len=100)  :: elements_file
   character(len=100)  :: gases_file
   character(len=100)  :: growth_file
   character(len=100)  :: nuc_file
+  character(len=100)  :: coag_file
 
 
 
@@ -221,14 +226,14 @@ subroutine test_day()
   ! Homogeneous Nucleation: (numbers of condensing material)hom
 
   ! real(kind=f)          :: tempr(NZ), pre(NZ), prel(NZP1), alt(NZ), altl(NZP1), wtmol_air(NZ), grav(NZ), ekz(NZP1), ekzl(NZP1)
-  ! real(kind=f)          :: temp_equator(NZ, ilongitude), p_equator_center(NZ), p_equator_level(NZP1), velocity(ilongitude), longitudes(ilongitude)
+  ! real(kind=f)          :: temp_equator(NZ, NLONGITUDE), p_equator_center(NZ), p_equator_level(NZP1), velocity(NLONGITUDE), longitudes(NLONGITUDE)
 
   real(kind=f)          :: distance_btwn_elements, circumference, rotation_counter, slope, intercept
-  real(kind=f)          :: current_distance, closeto_temp_profile, num_steps_btwn, current_step, RPLANET_DAT, velocity_avg
+  real(kind=f)          :: current_distance, closeto_temp_profile, num_steps_btwn, current_step, RPLANET_DAT
 
-  namelist / io_files / filename, filename_restart, fileprefix, gas_input_file, centers_file, levels_file, groups_file, elements_file, gases_file, growth_file, nuc_file
-  namelist / physical_params / wtmol_air_set, grav_set, rplanet
-  namelist / input_params / NZ, NELEM, NGROUP, NGAS, NBIN, NSOLUTE, NWAVE, ilongitude, irestart, idiag, iskip, nstep, dtime, NGROWTH, NNUC
+  namelist / io_files / filename, filename_restart, fileprefix, gas_input_file, centers_file, levels_file,temps_file, groups_file, elements_file, gases_file, growth_file, nuc_file, coag_file
+  namelist / physical_params / wtmol_air_set, grav_set, rplanet, velocity_avg
+  namelist / input_params / NZ, NELEM, NGROUP, NGAS, NBIN, NSOLUTE, NWAVE, NLONGITUDE, irestart, idiag, iskip, nstep, dtime, NGROWTH, NNUC, NCOAG, IS_2D, igridv
 
 
   real(kind=f), allocatable ::tempr(:), pre(:), prel(:), alt(:), altl(:), wtmol_air(:), grav(:), ekz(:), ekzl(:), wtmol_gas(:)
@@ -247,7 +252,7 @@ subroutine test_day()
   NZP1 = NZ + 1
 
   allocate(tempr(NZ), pre(NZ), prel(NZP1), alt(NZ), altl(NZP1), wtmol_air(NZ), grav(NZ), ekz(NZP1), ekzl(NZP1), wtmol_gas(NGAS))
-  allocate(temp_equator(NZ, ilongitude), p_equator_center(NZ), p_equator_level(NZP1), velocity(ilongitude), longitudes(ilongitude))
+  allocate(temp_equator(NZ, NLONGITUDE), p_equator_center(NZ), p_equator_level(NZP1), velocity(NLONGITUDE), longitudes(NLONGITUDE))
 
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -255,19 +260,34 @@ subroutine test_day()
   open(12, file = centers_file)
   read(12, *)
   do i = 1, NZ
- 	  read(12,*) alt(i), pre(i), tempr(i)
+ 	  read(12,*) alt(i), pre(i)
+  end do
+  close(12)
+
+  open(12, file = levels_file) 
+  read(12, *)
+
+  do i=1, NZP1
+    read(12,*) altl(i), prel(i), ekz(i)
   end do
 
   close(12)
 
-  open(13, file = levels_file) 
-  read(13, *)
 
-  do i=1, NZP1
-    read(13,*) altl(i), prel(i), ekz(i)
+  open(12, file=temps_file)
+  do i=1, NZ
+    if (IS_2D .eq. 1) then
+      read (12, *) temp_equator(i, :)
+      tempr(i) = temp_equator(i, 1)
+    else
+      read (12, *) tempr(i)
+    end if
   end do
 
-  close(13)
+  close(12)
+
+
+
 
 
   wtmol_air(:) =wtmol_air_set 
@@ -275,6 +295,11 @@ subroutine test_day()
   met = 1._f
 
   t0_in = MAXVAL(tempr)
+
+  circumference = 2 *PI * rplanet !cm
+  distance_btwn_elements = circumference/NLONGITUDE
+  
+
 
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -461,9 +486,19 @@ subroutine test_day()
   enddo
   close(10)
 
- ! write(*,*) "  Add Coagulation ..."
- ! call CARMA_AddCoagulation(carma, 2, 2, 2, I_COLLEC_FUCHS, rc)
- ! if (rc < 0) stop "    *** FAILED ***"
+ write(*,*) "  Add Coagulation ..."
+ open(10, file=coag_file)
+ read(10, *)
+ do i = 1, NCOAG
+   read(10, *) igroup
+
+   call CARMA_AddCoagulation(carma, igroup, igroup, igroup, I_COLLEC_FUCHS, rc) 
+   if (rc < 0) stop "    *** FAILED ***"
+   
+ enddo
+ close(10)
+
+
 
   write(*,*) " "
 
@@ -624,7 +659,12 @@ subroutine test_day()
   rho_atm_cgs = p(:) / (RGAS/wtmol_air(:) * t(:))
 
 
-
+  ! Initialize longitudinal steps
+  
+  closeto_temp_profile = int(0)
+  current_distance = 0
+  rotation_counter = 0
+  current_step = 0
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -694,7 +734,7 @@ subroutine test_day()
   endif
 
   call CARMASTATE_CreateFromReference(cstate, carma_ptr, time, dtime, NZ, &
-                         	      I_CART, I_CART, lat, lon, &
+                         	      igridv, I_CART, lat, lon, &
                          	      xc(:), dx(:), &
                          	      yc(:), dy(:), &
                          	      zc(:), zl(:), p(:), &
@@ -741,10 +781,21 @@ subroutine test_day()
       write(lundiagn,*) ' '
     end if
 
- !   mmr(:,1,1) = mmr(:,1,1) + prodrate(:,1) * dtime / rho_atm_cgs
- !   mmr(:,1,10) = mmr(:,1,10) + prodrate(:,10) * dtime / rho_atm_cgs
- !   mmr_gas(:,3) = mmr_gas(:,3) + prodrate_gas(:,3) * dtime / rho_atm_cgs(:)
- !   mmr_gas(:,2) = mmr_gas(:,2) + prodrate_gas(:,2) * dtime / rho_atm_cgs(:)
+    if (IS_2D .eq. 1) then
+      current_distance = (velocity_avg*time)/distance_btwn_elements !in grid space
+      rotation_counter = int(current_distance/NLONGITUDE)
+      current_step = current_distance - (NLONGITUDE*rotation_counter)
+      closeto_temp_profile = int(current_step)!int(current_step)+1
+
+      write(*,*) rotation_counter, closeto_temp_profile, current_step
+
+      if (closeto_temp_profile .eq. NLONGITUDE) then
+        t(:) = temp_equator(:,1)
+      else
+        t(:) = temp_equator(:,closeto_temp_profile+1)
+      end if
+
+     end if
 
 
     ! To do: change gas input rate; add gaussian distribution to size of CNs being added; change nucleation rate with
@@ -752,7 +803,7 @@ subroutine test_day()
 
     ! Create a CARMASTATE for this column.
     call CARMASTATE_Create(cstate, carma_ptr, time, dtime, NZ, &
-                           I_CART, I_CART, lat, lon, &
+                           igridv, I_CART, lat, lon, &
                            xc(:), dx(:), &
                            yc(:), dy(:), &
                            zc(:), zl(:), p(:), &
@@ -836,12 +887,21 @@ subroutine test_day()
     if (MOD (istep, iskip) .eq. 0) then
 
       write(*,*) 'Recorded'
-      write(lun,*) (istep)*dtime
-      write(lunp,*) (istep)*dtime
-      write(lunf,*) (istep)*dtime
-      write(lunfp,*) (istep)*dtime
-      write(lunrates,*) (istep)*dtime
-      write(lunratesp,*) (istep)*dtime
+      if (IS_2D) then
+        write(lun,*) (istep)*dtime, current_distance, rotation_counter, current_step, current_step/NLONGITUDE * 360
+        write(lunp,*) (istep)*dtime, current_distance, rotation_counter, current_step, current_step/NLONGITUDE * 360
+        write(lunf,*) (istep)*dtime, current_distance, rotation_counter, current_step, current_step/NLONGITUDE * 360
+        write(lunfp,*) (istep)*dtime, current_distance, rotation_counter, current_step, current_step/NLONGITUDE * 360
+        write(lunrates,*) (istep)*dtime, current_distance, rotation_counter, current_step, current_step/NLONGITUDE * 360
+        write(lunratesp,*) (istep)*dtime, current_distance, rotation_counter, current_step, current_step/NLONGITUDE * 360
+      else
+        write(lun,*) (istep)*dtime
+        write(lunp,*) (istep)*dtime
+        write(lunf,*) (istep)*dtime
+        write(lunfp,*) (istep)*dtime
+        write(lunrates,*) (istep)*dtime
+        write(lunratesp,*) (istep)*dtime
+      end if
 
       do j = 1, NBIN
         do i = 1, NZ

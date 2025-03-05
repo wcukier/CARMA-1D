@@ -125,7 +125,7 @@ def load_profiles(teff, g, f, m):
 if __name__ == "__main__":
     run_num = int(sys.argv[1])
     
-    Teff_grid = range(1400, 2401, 100)
+    Teff_grid = range(900, 2401, 100)
     teff = Teff_grid[run_num]
     print(f"Teff: {teff}")
     

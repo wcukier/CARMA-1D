@@ -10,7 +10,7 @@
 #SBATCH --cpus-per-task=1
 #SBATCH --mem-per-cpu=4G
 #SBATCH --time=01-12:00:00
-#SBATCH --array=0-11
+#SBATCH --array=0-15
 pwd; hostname; date
 
 echo "Running program on $SLURM_JOB_NUM_NODES nodes, with each node getting $SLURM_NTASKS_PER_NODE tasks, for $SLURM_NTASKS total tasks."

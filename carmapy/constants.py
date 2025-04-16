@@ -313,4 +313,20 @@ mucos_dict = {
 }
 
 
+fastchem_species = {
+    "H2O": "H2O2",
+    "TiO2": "Ti",
+    "Fe": "Fe",
+    "Mg2SiO4": "Mg",
+    "Cr": "Cr",
+    "MnS": "Mn",
+    "Na2S": "Na",
+    "ZnS": "Zn",
+    "KCl": "K",
+    "Al2O3": "Al"
+}
+
+
 JUPITER_RADIUS = 6.69950
+BAR_TO_BARYE = 1e6
+k_B = 1.381e-16 #erg/K

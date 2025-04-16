@@ -438,6 +438,7 @@ contains
     cstate%f_grav(:)  = grav(:)
     cstate%f_winds(:) = 0._f
     if (present(winds)) cstate%f_winds(:)  = winds(:)			!PETER
+    write(*,*) cstate%f_zmet(:)
     cstate%f_ekz(:)  = ekz(:) / cstate%f_zmetl(:)**2._f  			!PETER !DPOW
     
     cstate%f_pcd(:,:,:)     = 0._f

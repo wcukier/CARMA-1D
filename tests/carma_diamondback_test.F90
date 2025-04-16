@@ -238,6 +238,7 @@ subroutine test_day()
 
   real(kind=f), allocatable ::tempr(:), pre(:), prel(:), alt(:), altl(:), wtmol_air(:), grav(:), ekz(:), ekzl(:), wtmol_gas(:)
   real(kind=f), allocatable ::temp_equator(:, :), p_equator_center(:), p_equator_level(:), velocity(:), longitudes(:)
+  integer, allocatable :: elem2group(:)
 
 
 
@@ -253,7 +254,7 @@ subroutine test_day()
 
   allocate(tempr(NZ), pre(NZ), prel(NZP1), alt(NZ), altl(NZP1), wtmol_air(NZ), grav(NZ), ekz(NZP1), ekzl(NZP1), wtmol_gas(NGAS))
   allocate(temp_equator(NZ, NLONGITUDE), p_equator_center(NZ), p_equator_level(NZP1), velocity(NLONGITUDE), longitudes(NLONGITUDE))
-
+  allocate(elem2group(NELEM))
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -411,6 +412,7 @@ subroutine test_day()
       stop "invalid element type"
     endif
       call CARMAELEMENT_Create(carma, i, igroup, name, rho, itype, icomposition, rc)
+      elem2group(i) = igroup
       if (rc < 0) stop "    *** FAILED ***"
 
   enddo
@@ -699,7 +701,7 @@ subroutine test_day()
     write(lun, '(i3,i4)', advance="no") j, i
 
     do ielem = 1, NELEM
-      write(lun, '(e11.3)', advance="no") real(mmr(i,ielem,j) * rho_atm_cgs(i) / rmass(j,ielem))
+      write(lun, '(e11.3)', advance="no") real(mmr(i,ielem,j) * rho_atm_cgs(i) / rmass(j,elem2group(ielem)))
     end do
 
     do igas = 1, NGAS
@@ -734,7 +736,9 @@ subroutine test_day()
   endif
 
   call CARMASTATE_CreateFromReference(cstate, carma_ptr, time, dtime, NZ, &
-                         	      igridv, I_CART, lat, lon, &
+                         	      ! igridv, I_CART, lat, lon, &
+                                 I_CART, I_CART, lat, lon, &
+
                          	      xc(:), dx(:), &
                          	      yc(:), dy(:), &
                          	      zc(:), zl(:), p(:), &
@@ -803,7 +807,9 @@ subroutine test_day()
 
     ! Create a CARMASTATE for this column.
     call CARMASTATE_Create(cstate, carma_ptr, time, dtime, NZ, &
-                           igridv, I_CART, lat, lon, &
+                          ! igridv, I_CART, lat, lon, &
+
+                           I_CART, I_CART, lat, lon, &
                            xc(:), dx(:), &
                            yc(:), dy(:), &
                            zc(:), zl(:), p(:), &

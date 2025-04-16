@@ -14,7 +14,8 @@ F90DOC = ../../bin/f90doc-0.4.0/f90doc
 PACKAGE =	CARMA
 TGZ =		CARMA.tar
 
-FFLAGS = #-ggdb -O0 -traceback
+FFLAGS =
+# FFLAGS += -ggdb -O0 -traceback
 #FFLAGS += -DSINGLE                    # for single precision
 #FFLAGS += -DDEBUG                     # for debug print statements
 
@@ -28,7 +29,7 @@ ifeq ($(FORTRAN),ifort)
 #  FFLAGS += -use-asm
 
   # Debug options.
-  #FFLAGS += -g -O0 -traceback -fp-stack-check -check bounds -check uninit -fpe0 -ftrapuv
+  FFLAGS += -g -O0 -traceback -fp-stack-check -check bounds -check uninit -fpe0 -ftrapuv
   
   # Open/MP
   # FFLAGS += -qopenmp

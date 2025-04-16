@@ -42,7 +42,6 @@ class Carma:
         self.output_gap = 1000
         self.n_tstep = 1_000_000
         
-        self.results = {}
         
         if is_2d:
             self.igridv = I_LOGP
@@ -413,7 +412,7 @@ class Carma:
         os.chdir(wd)
             
     def read_results(self):
-        load_results(self)
+        self.results = Results(self)
         
         
     
@@ -541,7 +540,7 @@ def load_carma(path, restart=1):
             gas = carma.gasses[list(carma.gasses.keys())[int(igas)-1]]
             carma.growth.append(Growth(elem, gas))
             
-    with open(path+"inputs/coagulation.txt") as f:
+    with open(path+"/inputs/coagulation.txt") as f:
         f.readline()
         for line in f:
             igroup = int(f.readline())
@@ -558,7 +557,7 @@ def load_carma(path, restart=1):
         
     gas_input = np.genfromtxt(path+"/inputs/gas_input.txt")
     for i, key in enumerate(carma.gasses.keys()):
-        carma.gasses[key].nmr = gas_input[:, i]
+        carma.gasses[key].nmr = gas_input[1:, i]
         
     return carma
 

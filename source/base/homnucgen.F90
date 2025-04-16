@@ -50,7 +50,7 @@ subroutine homnucgen(carma,cstate, iz, rc)
     
     ielem = ienconc(igroup)      
     igas = inucgas(ielem,ielem)
-    !write(*,*) iz,ielem,igas
+    ! write(*,*) iz,ielem,igas
     
     if ((igas .ne. 0) .and. (inucproc(ielem,ielem) .eq. I_HOMGEN)) then
 
@@ -127,10 +127,11 @@ subroutine homnucgen(carma,cstate, iz, rc)
  		
         ! If none of the bins are large enough for the critical radius, then
         ! no nucleation will occur.
-        if (nucbin > NBIN) then
+        if ((nucbin > NBIN).OR.(nucbin < 0)) then
           nucbin  = 0 
           nucrate = 0._f
         else
+          ! write(*, *) nucbin
   	      nucrate = nucrate*cmass/rmass(nucbin,igroup)
         endif
       endif

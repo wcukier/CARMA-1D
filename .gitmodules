@@ -1,3 +1,6 @@
 [submodule "CApyBaRA"]
 	path = CApyBaRA
 	url = https://github.com/wcukier/CApyBaRA
+[submodule "carmapy"]
+	path = carmapy
+	url = https://github.com/wcukier/carmapy

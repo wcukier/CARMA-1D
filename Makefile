@@ -5,7 +5,7 @@
 FORTRAN =	ifort
 #FORTRAN =	pgf90
 #FORTRAN =	pathf90
-#FORTRAN =	gfortran
+# FORTRAN =	gfortran
 #FORTRAN =	g95
 #FORTRAN =	xlf90
 
@@ -14,8 +14,10 @@ F90DOC = ../../bin/f90doc-0.4.0/f90doc
 PACKAGE =	CARMA
 TGZ =		CARMA.tar
 
-FFLAGS =
-# FFLAGS += -ggdb -O0 -traceback
+FFLAGS = -O3
+# FFLAGS += -traceback -O3
+# FFLAGS += -pg 
+# FFLAGS += -ggdb -O0 -tr=aceback 
 #FFLAGS += -DSINGLE                    # for single precision
 #FFLAGS += -DDEBUG                     # for debug print statements
 
@@ -29,7 +31,7 @@ ifeq ($(FORTRAN),ifort)
 #  FFLAGS += -use-asm
 
   # Debug options.
-  FFLAGS += -g -O0 -traceback -fp-stack-check -check bounds -check uninit -fpe0 -ftrapuv
+  # FFLAGS += -g -O0 -traceback -fp-stack-check -check bounds -check uninit -fpe0 -ftrapuv
   
   # Open/MP
   # FFLAGS += -qopenmp
@@ -84,8 +86,9 @@ ifeq ($(FORTRAN),xlf90)
 endif
 
 ifeq ($(FORTRAN),gfortran)
-  FFLAGS += -fexceptions -fbackslash
-  FFLAGS += -fPIC -fno-omit-frame-pointer -ffixed-line-length-none
+  FFLAGS += -ffree-line-length-512 -O3
+  # FFLAGS += -fexceptions -fbackslash 
+  # FFLAGS += -fPIC -fno-omit-frame-pointer -ffixed-line-length-none
   #FLIBS= $RPATH $MLIBS -lm
   FOPTIMFLAGS = -O3
   FDEBUGFLAGS = -g

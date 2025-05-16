@@ -218,7 +218,7 @@ subroutine newstate(carma, cstate, rc)
       !call nsubsteps(carma, cstate, iz, dtime_orig, ntsubsteps, rc)
       !if (rc <  RC_OK) return
       
-	!write(*,*) iz, ntsubsteps
+	    !write(*,*) iz, ntsubsteps
 
       ! Grab sedimentation source for entire step for this layer
       ! and set accumlated source for underlying layer to zero
@@ -231,6 +231,9 @@ subroutine newstate(carma, cstate, rc)
       takeSteps = .true.
       redugrow(:) = 1._f
       
+
+      !!!!!!!!!!!!!!!!!!!!!!! Start Substepping !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
       do while (takeSteps)
       
         ! Compute sub-timestep time interval for current spatial grid point
@@ -268,7 +271,7 @@ subroutine newstate(carma, cstate, rc)
         !end if				        !PETER 
         
         do isubstep = 1,ntsubsteps
-	   !write(*,*) iz, ntsubsteps, redugrow(:)
+	      !write(*,*) iz, ntsubsteps, redugrow(:)
           
           ! If substepping, then increment the gas concentration and the temperature by
           ! an amount for one substep.
@@ -302,7 +305,7 @@ subroutine newstate(carma, cstate, rc)
           
           ! Calculate changes in particle concentrations for current spatial point
           ! due to microphysical processes, part 2.  (faster microphysical calcs)
-!          call microfast(carma, cstate, iz, rc)
+          ! call microfast(carma, cstate, iz, rc)
 
           !write(*,*) "before microfast"
           !write(*,*) isubstep, iz
@@ -315,7 +318,7 @@ subroutine newstate(carma, cstate, rc)
           ! If there was a retry warning message and substepping is enabled, then retry
           ! the operation with more substepping.
           if (rc == RC_WARNING_RETRY) then
-		!write(*,*) 'RETRY WARNING'
+		        !write(*,*) 'RETRY WARNING'
             if (do_substep) then
           
               ! Only retry for so long ...
@@ -332,9 +335,9 @@ subroutine newstate(carma, cstate, rc)
               ! NOTE: We are going to rely upon retries, so don't clutter the log
               ! with retry print statements. They slow down the run.
               ntsubsteps = ntsubsteps * 2
-!               maxrate = maxrate / 2                  !PETER
+              ! maxrate = maxrate / 2                  !PETER
               
-!              if (do_print) write(LUNOPRT,*) "newstate::WARNING - Substep failed, retrying with ", ntsubsteps, " substeps."
+              !if (do_print) write(LUNOPRT,*) "newstate::WARNING - Substep failed, retrying with ", ntsubsteps, " substeps."
   
               ! Reset the state to the beginning of the step
               pc(iz,:,:) = pcl(iz,:,:)
@@ -510,6 +513,7 @@ subroutine newstate(carma, cstate, rc)
       end do
     end do
   end if
+
 
 	!call cpu_time(t6)  	!PETER  
 
